@@ -251,6 +251,35 @@ export function endCall() {
 }
 
 /**
+ * Sign the mirror out: invalidate the access token server-side, stop the
+ * client, wipe stored creds + contacts, and route back to login. Homeserver
+ * URL is kept so the next login skips the setup screen.
+ */
+export async function logout(): Promise<void> {
+  clearOutgoingTimeout();
+  const client = app.client;
+  if (client) {
+    try { await client.logout(true); } catch { /* server unreachable — proceed anyway */ }
+    try { client.stopClient(); } catch { /* ignore */ }
+    try { await client.clearStores(); } catch { /* ignore */ }
+  }
+  app.client = null;
+  app.activeCall = null;
+  app.verified = false;
+  app.pendingRequest = null;
+  app.pendingSas = null;
+  app.error = null;
+
+  app.config.userId = null;
+  app.config.accessToken = null;
+  app.config.deviceId = null;
+  app.config.contacts = [];
+  app.persist();
+
+  app.setView(app.config.homeserverUrl ? "login" : "setup");
+}
+
+/**
  * Resolve the "other" participant in a call's room — used by the ringing
  * splash to display who's calling. Returns null if we can't find them yet
  * (e.g., room state hasn't synced).

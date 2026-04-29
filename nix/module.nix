@@ -25,7 +25,7 @@ in
 
     enableACME = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = ''
         Whether to provision a Let's Encrypt certificate via ACME and force
         HTTPS. Requires `security.acme.acceptTerms = true` and a working

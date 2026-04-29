@@ -22,6 +22,8 @@ export interface AppConfig {
   dimAfterSeconds: number;
   /** Seconds the "ringing" splash is shown before auto-answering. */
   ringSeconds: number;
+  /** Show the idle clock in 24h format. False = 12h with AM/PM. */
+  clock24h: boolean;
 }
 
 const STORAGE_KEY = "magic-mirror.config.v1";
@@ -35,6 +37,7 @@ const DEFAULT_CONFIG: AppConfig = {
   autoAnswer: true,
   dimAfterSeconds: 60,
   ringSeconds: 3,
+  clock24h: true,
 };
 
 export function loadConfig(): AppConfig {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { app } from "../lib/store.svelte";
-  import { listDmCandidates, type CandidateContact } from "../lib/matrix";
+  import { listDmCandidates, logout, type CandidateContact } from "../lib/matrix";
   import { onInput } from "../lib/input";
 
   let candidates = $state<CandidateContact[]>([]);
@@ -9,6 +9,20 @@
     new Set(app.config.contacts.map((c) => c.userId)),
   );
   let cursor = $state(0);
+  let confirmLogout = $state(false);
+
+  function toggleClock() {
+    app.config.clock24h = !app.config.clock24h;
+    app.persist();
+  }
+
+  async function doLogout() {
+    if (!confirmLogout) {
+      confirmLogout = true;
+      return;
+    }
+    await logout();
+  }
 
   onMount(() => {
     if (!app.client) return;
@@ -41,15 +55,20 @@
 
   const SAVE_POS = $derived(candidates.length);
   const VERIFY_POS = $derived(candidates.length + 1);
+  const CLOCK_POS = $derived(candidates.length + 2);
+  const LOGOUT_POS = $derived(candidates.length + 3);
 
   const off = onInput((evt) => {
+    // Reset the "are you sure?" prompt as soon as the user moves off it.
+    if (evt !== "select") confirmLogout = false;
+
     if (candidates.length === 0) {
       if (evt === "back") app.setView("idle");
       return;
     }
     switch (evt) {
       case "next":
-        cursor = Math.min(cursor + 1, VERIFY_POS);
+        cursor = Math.min(cursor + 1, LOGOUT_POS);
         break;
       case "prev":
         cursor = Math.max(cursor - 1, 0);
@@ -57,6 +76,8 @@
       case "select":
         if (cursor === SAVE_POS) save();
         else if (cursor === VERIFY_POS) app.setView("verify");
+        else if (cursor === CLOCK_POS) toggleClock();
+        else if (cursor === LOGOUT_POS) doLogout();
         else toggleAt(cursor);
         break;
       case "back":
@@ -114,6 +135,27 @@
     >
       {app.verified ? "Re-verify session" : "Verify session ⚠"}
     </button>
+
+    <button
+      class="toggle"
+      class:active={cursor === CLOCK_POS}
+      onclick={toggleClock}
+    >
+      Clock format · <strong>{app.config.clock24h ? "24h" : "12h"}</strong>
+    </button>
+
+    <button
+      class="logout"
+      class:active={cursor === LOGOUT_POS}
+      class:armed={confirmLogout}
+      onclick={doLogout}
+    >
+      {confirmLogout ? "Tap again to confirm sign out" : "Sign out"}
+    </button>
+
+    {#if app.config.userId}
+      <div class="account">Signed in as {app.config.userId}</div>
+    {/if}
   {/if}
 </div>
 
@@ -194,7 +236,7 @@
   }
   .save.active { border-color: #fff; box-shadow: 0 0 0 4px rgba(93, 208, 255, 0.3); }
 
-  .verify {
+  .verify, .toggle, .logout {
     margin-top: 0.5rem;
     padding: 0.6rem 1.5rem;
     background: rgba(255, 255, 255, 0.06);
@@ -202,7 +244,25 @@
     border-radius: 8px;
     border: 2px solid transparent;
   }
-  .verify.active { border-color: var(--accent); color: inherit; }
+  .verify.active, .toggle.active, .logout.active {
+    border-color: var(--accent);
+    color: inherit;
+  }
+  .toggle strong { color: var(--accent); font-weight: 500; }
+
+  .logout { color: var(--danger); }
+  .logout.active { border-color: var(--danger); }
+  .logout.armed {
+    background: rgba(255, 93, 108, 0.15);
+    color: #fff;
+  }
+
+  .account {
+    margin-top: 0.75rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+    opacity: 0.6;
+  }
 
   .empty { max-width: 480px; text-align: center; color: var(--muted); }
 </style>

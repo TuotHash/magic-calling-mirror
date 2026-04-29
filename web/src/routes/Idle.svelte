@@ -28,7 +28,11 @@
   onDestroy(() => window.removeEventListener("keydown", handleSettingsKey));
 
   const time = $derived(
-    now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: !app.config.clock24h,
+    }),
   );
   const date = $derived(
     now.toLocaleDateString([], {

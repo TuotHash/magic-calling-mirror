@@ -22,7 +22,7 @@ html, body, #app {
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
-  cursor: none;
+  cursor: auto;
 }
 
 button {
@@ -30,14 +30,14 @@ button {
   color: inherit;
   background: none;
   border: none;
-  cursor: none;
+  cursor: pointer;
 }
 
-/* Configurator escape hatch: press C to toggle the cursor on/off. */
-body.show-cursor,
-body.show-cursor *,
-body.show-cursor button {
-  cursor: auto;
+/* Press C to hide the cursor (useful for the final kiosk install). */
+body.hide-cursor,
+body.hide-cursor *,
+body.hide-cursor button {
+  cursor: none;
 }
 
 input {
