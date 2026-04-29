@@ -23,8 +23,8 @@ single-purpose mirror that boots straight into the web app.
 ## Install
 
 ```sh
-git clone <this repo> ~/magic-video-call-mirror
-cd ~/magic-video-call-mirror/kiosk
+git clone https://github.com/TuotHash/magic-calling-mirror ~/magic-calling-mirror
+cd ~/magic-calling-mirror/kiosk
 sudo ./install.sh
 ```
 
