@@ -1,0 +1,13 @@
+Magic Video Call Mirror
+Copyright 2026 The Magic Video Call Mirror Authors
+
+This product includes software developed by the Matrix.org Foundation
+(https://matrix.org/), specifically:
+
+  - matrix-js-sdk (Apache License 2.0)
+    https://github.com/matrix-org/matrix-js-sdk
+
+This project is inspired by Element Call (https://github.com/element-hq/element-call),
+which is licensed under the GNU Affero General Public License v3.0. No code
+from Element Call is included in this project; only public Matrix specifications
+and the Apache-2.0-licensed matrix-js-sdk are used.

@@ -1,0 +1,27 @@
+# Node
+node_modules/
+dist/
+.vite/
+*.log
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+
+# Claude Code local state (machine-specific permissions, paths, etc.)
+.claude/
+
+# Env
+.env
+.env.local
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build artifacts
+build/
+*.egg-info/
