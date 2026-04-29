@@ -24,8 +24,17 @@ function emit(event: InputEvent) {
   for (const h of handlers) h(event);
 }
 
+/** Don't hijack keys when the user is typing into a text field. */
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  return target.isContentEditable;
+}
+
 export function installInputHandlers() {
   window.addEventListener("keydown", (e) => {
+    if (isEditableTarget(e.target)) return;
     switch (e.key) {
       case "ArrowUp":
       case "ArrowLeft":

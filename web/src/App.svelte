@@ -24,6 +24,16 @@
       document.body.classList.add("hide-cursor");
     }
     window.addEventListener("keydown", (e) => {
+      // Don't hijack typing in form fields.
+      const t = e.target as HTMLElement | null;
+      const editing =
+        t instanceof HTMLElement &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.isContentEditable);
+      if (editing) return;
+
       if (e.key === "c" || e.key === "C") {
         const hidden = document.body.classList.toggle("hide-cursor");
         localStorage.setItem("magic-mirror.hide-cursor", hidden ? "1" : "0");
