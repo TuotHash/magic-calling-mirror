@@ -41,6 +41,38 @@ export function buildSsoRedirectUrl(homeserverUrl: string, redirectUrl: string):
 }
 
 /**
+ * Authenticate via `m.login.password`. Accepts either a localpart ("alice")
+ * or a full Matrix ID ("@alice:example.com") — Synapse parses both.
+ */
+export async function loginWithPassword(
+  homeserverUrl: string,
+  username: string,
+  password: string,
+): Promise<{ userId: string; accessToken: string; deviceId: string }> {
+  const url = `${stripTrailingSlash(homeserverUrl)}/_matrix/client/v3/login`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type: "m.login.password",
+      identifier: { type: "m.id.user", user: username },
+      password,
+      initial_device_display_name: "Magic Mirror",
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(detail?.error ?? `password login failed: ${res.status}`);
+  }
+  const data = await res.json();
+  return {
+    userId: data.user_id,
+    accessToken: data.access_token,
+    deviceId: data.device_id,
+  };
+}
+
+/**
  * Exchange the loginToken returned by the SSO redirect for an access token
  * and device ID via `m.login.token`.
  */
