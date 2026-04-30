@@ -1,6 +1,6 @@
 # Magic Video Call Mirror
 
-A Matrix-powered video call mirror — a "magic mirror" that lets anyone
+A Matrix-powered video call client for magic mirrors that lets anyone
 (including folks who don't want to fiddle with apps and menus) start and
 receive video calls effortlessly. Built for kiosk-style installs in a
 hallway, kitchen, or living room.
