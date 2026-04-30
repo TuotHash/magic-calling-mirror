@@ -5,6 +5,9 @@ A Matrix-powered video call client for magic mirrors that lets anyone
 receive video calls effortlessly. Built for kiosk-style installs in a
 hallway, kitchen, or living room.
 
+> **Disclaimer:** This project contains code written with AI assistance.
+> Review before deploying to anything you care about.
+
 ## What it is
 
 - **Web client** (Svelte 5 + TypeScript): a full-screen, kiosk-friendly
@@ -41,13 +44,13 @@ beyond your existing Synapse homeserver.
 | Matrix client | matrix-js-sdk | Apache-2.0, official SDK |
 | Calls | matrix-js-sdk WebRTC + TURN | No LiveKit needed for 1:1 |
 | Crypto | matrix-sdk-crypto-wasm | Rust-based E2EE, required for encrypted DMs |
-| Auth | Matrix SSO (OIDC) | Works with Authentik out of the box |
+| Auth | Matrix SSO (OIDC), with username/password fallback | Works with any standards-compliant OIDC provider |
 | Presence | MediaPipe FaceDetector (browser) | No extra agent required |
 
 ## Prerequisites
 
 - A self-hosted [Synapse](https://github.com/element-hq/synapse) instance
-  reachable over HTTPS, with an OIDC provider (e.g. [Authentik](https://goauthentik.io/))
+  reachable over HTTPS, optionally with an OIDC provider for SSO
 - A TURN server (coturn) for WebRTC NAT traversal
 - An existing Matrix account for the mirror device
 
@@ -68,7 +71,9 @@ nix-shell   # drops into a shell with node + pnpm
 cd web && pnpm install && pnpm dev
 ```
 
-Open the printed URL, enter your Synapse homeserver URL, and log in via SSO.
+Open the printed URL, enter your Synapse homeserver URL, and log in via
+SSO — or fall back to username/password if your homeserver doesn't have
+OIDC configured.
 
 On first login you'll be prompted to verify the mirror's session
 (recovery key or emoji SAS from Element X). This is required for calls
