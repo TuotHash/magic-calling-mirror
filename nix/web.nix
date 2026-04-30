@@ -15,6 +15,7 @@ stdenv.mkDerivation (finalAttrs: {
       ../web/tsconfig.json
       ../web/vite.config.ts
       ../web/index.html
+      ../web/public
       ../web/src
     ];
   };
