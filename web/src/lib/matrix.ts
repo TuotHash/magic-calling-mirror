@@ -358,7 +358,7 @@ export async function logout(): Promise<void> {
  */
 export function describeCaller(call: MatrixCall): {
   displayName: string;
-  avatarHttpUrl: string | null;
+  avatarMxc: string | null;
 } | null {
   const client = app.client;
   if (!client) return null;
@@ -371,17 +371,16 @@ export function describeCaller(call: MatrixCall): {
     room.currentState.getMembers().find((m) => m.userId !== me);
 
   if (!member) return null;
-  const mxc = member.getMxcAvatarUrl() ?? null;
   return {
     displayName: member.name || member.rawDisplayName || member.userId,
-    avatarHttpUrl: mxc ? mxcToHttp(client, mxc, 512) : null,
+    avatarMxc: member.getMxcAvatarUrl() ?? null,
   };
 }
 
 export interface CandidateContact {
   userId: string;
   displayName: string;
-  avatarHttpUrl: string | null;
+  avatarMxc: string | null;
 }
 
 /**
@@ -413,11 +412,7 @@ export function listDmCandidates(client: MatrixClient): CandidateContact[] {
       }
     }
 
-    out.push({
-      userId,
-      displayName,
-      avatarHttpUrl: avatarMxc ? mxcToHttp(client, avatarMxc, 256) : null,
-    });
+    out.push({ userId, displayName, avatarMxc });
   }
 
   out.sort((a, b) => a.displayName.localeCompare(b.displayName));
@@ -425,16 +420,28 @@ export function listDmCandidates(client: MatrixClient): CandidateContact[] {
 }
 
 /**
- * Convert an mxc:// URL to a thumbnailed HTTP URL via the homeserver's media
- * proxy. Returns null if the input isn't a valid mxc URL.
+ * Fetch a thumbnail for an `mxc://` URI via the *authenticated* media
+ * endpoint and return a blob URL suitable for `<img src>`. Synapse ≥1.100
+ * 404s the legacy /_matrix/media/v3 endpoints, so unauthenticated URLs no
+ * longer work even when embedded in an img tag. Caller is responsible for
+ * `URL.revokeObjectURL` when the blob is no longer in use.
  */
-export function mxcToHttp(
+export async function fetchAvatarBlobUrl(
   client: MatrixClient,
   mxcUrl: string,
-  size = 256,
-): string | null {
+  size: number,
+): Promise<string | null> {
   try {
-    return client.mxcUrlToHttp(mxcUrl, size, size, "crop", false, true) ?? null;
+    const url = client.mxcUrlToHttp(mxcUrl, size, size, "crop", false, true, true);
+    if (!url) return null;
+    const token = client.getAccessToken();
+    if (!token) return null;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
   } catch {
     return null;
   }

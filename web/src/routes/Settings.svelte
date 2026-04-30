@@ -1,10 +1,16 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { app } from "../lib/store.svelte";
-  import { listDmCandidates, logout, type CandidateContact } from "../lib/matrix";
+  import {
+    fetchAvatarBlobUrl,
+    listDmCandidates,
+    logout,
+    type CandidateContact,
+  } from "../lib/matrix";
   import { onInput } from "../lib/input";
 
   let candidates = $state<CandidateContact[]>([]);
+  let avatarUrls = $state<Record<string, string>>({});
   let selected = $state<Set<string>>(
     new Set(app.config.contacts.map((c) => c.userId)),
   );
@@ -26,10 +32,22 @@
 
   onMount(() => {
     if (!app.client) return;
-    candidates = listDmCandidates(app.client);
+    const client = app.client;
+    candidates = listDmCandidates(client);
     // Place cursor on first selected entry, if any.
     const idx = candidates.findIndex((c) => selected.has(c.userId));
     if (idx >= 0) cursor = idx;
+
+    for (const c of candidates) {
+      if (!c.avatarMxc) continue;
+      fetchAvatarBlobUrl(client, c.avatarMxc, 128).then((url) => {
+        if (url) avatarUrls = { ...avatarUrls, [c.userId]: url };
+      });
+    }
+  });
+
+  onDestroy(() => {
+    for (const url of Object.values(avatarUrls)) URL.revokeObjectURL(url);
   });
 
   function toggleAt(i: number) {
@@ -47,7 +65,7 @@
       .map((c) => ({
         userId: c.userId,
         displayName: c.displayName,
-        avatarHttpUrl: c.avatarHttpUrl,
+        avatarMxc: c.avatarMxc,
       }));
     app.persist();
     app.setView("idle");
@@ -108,8 +126,8 @@
           role="button"
           tabindex="-1"
         >
-          {#if c.avatarHttpUrl}
-            <img src={c.avatarHttpUrl} alt="" />
+          {#if avatarUrls[c.userId]}
+            <img src={avatarUrls[c.userId]} alt="" />
           {:else}
             <div class="placeholder">{c.displayName.charAt(0).toUpperCase()}</div>
           {/if}

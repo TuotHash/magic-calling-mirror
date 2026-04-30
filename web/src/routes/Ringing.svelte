@@ -2,12 +2,41 @@
   import { onMount, onDestroy } from "svelte";
   import { app } from "../lib/store.svelte";
   import { onInput } from "../lib/input";
-  import { answerActiveCall, describeCaller, endCall } from "../lib/matrix";
+  import {
+    answerActiveCall,
+    describeCaller,
+    endCall,
+    fetchAvatarBlobUrl,
+  } from "../lib/matrix";
   import { startRingtone, stopRingtone } from "../lib/ringtone";
 
   const caller = $derived(
     app.activeCall ? describeCaller(app.activeCall) : null,
   );
+  let avatarUrl = $state<string | null>(null);
+
+  $effect(() => {
+    const mxc = caller?.avatarMxc ?? null;
+    const client = app.client;
+    if (!mxc || !client) {
+      avatarUrl = null;
+      return;
+    }
+    let cancelled = false;
+    let owned: string | null = null;
+    fetchAvatarBlobUrl(client, mxc, 512).then((url) => {
+      if (cancelled) {
+        if (url) URL.revokeObjectURL(url);
+        return;
+      }
+      owned = url;
+      avatarUrl = url;
+    });
+    return () => {
+      cancelled = true;
+      if (owned) URL.revokeObjectURL(owned);
+    };
+  });
 
   let answerTimer: number | null = null;
 
@@ -34,8 +63,8 @@
 
 <div class="wrap">
   {#if caller}
-    {#if caller.avatarHttpUrl}
-      <img class="avatar pulse" src={caller.avatarHttpUrl} alt="" />
+    {#if avatarUrl}
+      <img class="avatar pulse" src={avatarUrl} alt="" />
     {:else}
       <div class="avatar pulse placeholder">
         {caller.displayName.charAt(0).toUpperCase()}

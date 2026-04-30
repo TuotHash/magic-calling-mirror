@@ -6,8 +6,12 @@
 export interface Contact {
   userId: string;
   displayName: string;
-  /** Last-known thumbnail URL. Refreshed when settings is opened. */
-  avatarHttpUrl: string | null;
+  /**
+   * `mxc://` URI for the user's avatar. Resolved to an authenticated blob
+   * URL at render time — Synapse ≥1.100 freezes the unauthenticated
+   * /_matrix/media/v3 endpoints, so we cannot persist HTTP URLs.
+   */
+  avatarMxc: string | null;
 }
 
 export interface AppConfig {
@@ -51,7 +55,15 @@ export function loadConfig(): AppConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_CONFIG };
-    return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    const merged: AppConfig = { ...DEFAULT_CONFIG, ...parsed };
+    // Drop the legacy unauthenticated avatar URL field — replaced by avatarMxc.
+    merged.contacts = (parsed.contacts ?? []).map((c: any) => ({
+      userId: c.userId,
+      displayName: c.displayName,
+      avatarMxc: c.avatarMxc ?? null,
+    }));
+    return merged;
   } catch {
     return { ...DEFAULT_CONFIG };
   }

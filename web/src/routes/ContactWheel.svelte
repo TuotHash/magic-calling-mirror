@@ -2,12 +2,29 @@
   import { onDestroy } from "svelte";
   import { app } from "../lib/store.svelte";
   import { onInput } from "../lib/input";
-  import { placeCall } from "../lib/matrix";
+  import { fetchAvatarBlobUrl, placeCall } from "../lib/matrix";
 
   let index = $state(0);
   let placing = $state(false);
   const contacts = $derived(app.config.contacts);
   const current = $derived(contacts[index]);
+
+  let avatarUrls = $state<Record<string, string>>({});
+
+  $effect(() => {
+    const client = app.client;
+    if (!client) return;
+    for (const c of contacts) {
+      if (!c.avatarMxc || avatarUrls[c.userId]) continue;
+      fetchAvatarBlobUrl(client, c.avatarMxc, 512).then((url) => {
+        if (url) avatarUrls = { ...avatarUrls, [c.userId]: url };
+      });
+    }
+  });
+
+  onDestroy(() => {
+    for (const url of Object.values(avatarUrls)) URL.revokeObjectURL(url);
+  });
 
   const off = onInput(async (evt) => {
     if (placing) return;
@@ -50,8 +67,8 @@
     <p class="prompt">Call</p>
 
     <div class="card">
-      {#if current.avatarHttpUrl}
-        <img src={current.avatarHttpUrl} alt="" />
+      {#if avatarUrls[current.userId]}
+        <img src={avatarUrls[current.userId]} alt="" />
       {:else}
         <div class="placeholder">{current.displayName.charAt(0).toUpperCase()}</div>
       {/if}
