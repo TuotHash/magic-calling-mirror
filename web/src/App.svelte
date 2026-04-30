@@ -46,8 +46,24 @@
       }
     });
 
-    // ?loginToken= means we just came back from the SSO redirect.
     const params = new URLSearchParams(window.location.search);
+
+    // ?presenceAgentUrl=... is the one-time entry point for opting into
+    // the Pi Agent (or back out, with an empty value). Save it and strip
+    // the param so refreshes don't re-apply it.
+    if (params.has("presenceAgentUrl")) {
+      app.config.presenceAgentUrl = (params.get("presenceAgentUrl") ?? "").trim();
+      app.persist();
+      params.delete("presenceAgentUrl");
+      const search = params.toString();
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname + (search ? `?${search}` : ""),
+      );
+    }
+
+    // ?loginToken= means we just came back from the SSO redirect.
     if (params.get("loginToken")) {
       app.setView("login");
       return;

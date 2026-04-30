@@ -24,6 +24,12 @@ export interface AppConfig {
   ringSeconds: number;
   /** Show the idle clock in 24h format. False = 12h with AM/PM. */
   clock24h: boolean;
+  /**
+   * Optional Pi Agent presence WebSocket URL (e.g. ws://127.0.0.1:8765).
+   * When set, PIR-based presence drives dim/wake instead of MediaPipe.
+   * Set via `?presenceAgentUrl=…` once on first load — see agent/README.md.
+   */
+  presenceAgentUrl: string;
 }
 
 const STORAGE_KEY = "magic-mirror.config.v1";
@@ -38,6 +44,7 @@ const DEFAULT_CONFIG: AppConfig = {
   dimAfterSeconds: 60,
   ringSeconds: 3,
   clock24h: true,
+  presenceAgentUrl: "",
 };
 
 export function loadConfig(): AppConfig {

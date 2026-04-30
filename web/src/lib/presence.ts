@@ -1,10 +1,16 @@
 import { FaceDetector, FilesetResolver } from "@mediapipe/tasks-vision";
 import { app } from "./store.svelte";
+import { startAgentPresence, stopAgentPresence } from "./agentPresence";
 
 /**
- * Webcam-based presence detection using MediaPipe's lightweight face detector.
- * Runs at ~2 Hz to keep the Pi cool. Updates `app.presenceActive` so the UI
- * can dim/wake based on whether someone is in front of the mirror.
+ * Presence detection facade. Picks the source based on config:
+ *  - if `presenceAgentUrl` is set, the optional Pi Agent (PIR sensor
+ *    over WebSocket) drives `app.presenceActive`;
+ *  - otherwise MediaPipe's lightweight face detector runs on the
+ *    webcam at ~2 Hz.
+ *
+ * The two sources never run simultaneously — picking one at startup
+ * keeps the Pi cool.
  */
 
 const DETECT_INTERVAL_MS = 500;
@@ -16,6 +22,20 @@ let timer: number | null = null;
 let lastFaceAt = 0;
 
 export async function startPresence(): Promise<void> {
+  const agentUrl = app.config.presenceAgentUrl?.trim();
+  if (agentUrl) {
+    startAgentPresence(agentUrl);
+    return;
+  }
+  await startCameraPresence();
+}
+
+export function stopPresence(): void {
+  stopCameraPresence();
+  stopAgentPresence();
+}
+
+async function startCameraPresence(): Promise<void> {
   if (detector) return;
 
   stream = await navigator.mediaDevices.getUserMedia({
@@ -61,7 +81,7 @@ function detectStep() {
   }
 }
 
-export function stopPresence() {
+function stopCameraPresence() {
   if (timer !== null) {
     clearInterval(timer);
     timer = null;

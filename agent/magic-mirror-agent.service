@@ -1,0 +1,16 @@
+[Unit]
+Description=Magic Mirror PIR presence agent
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/magic-mirror/agent.env
+ExecStart=/usr/local/bin/magic_mirror_agent.py
+Restart=on-failure
+RestartSec=3
+# Root keeps /dev/gpiomem access simple across Pi OS variants. The
+# server only listens on 127.0.0.1, so there's no remote attack surface.
+User=root
+
+[Install]
+WantedBy=multi-user.target

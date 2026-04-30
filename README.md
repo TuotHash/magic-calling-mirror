@@ -13,8 +13,8 @@ hallway, kitchen, or living room.
   dims when no one is around.
 - **Kiosk scripts**: turn a Raspberry Pi 4 (or any mini PC) into a
   dedicated mirror with a single install script.
-- **Optional Pi Agent** (coming): GPIO PIR-sensor presence as an
-  alternative to the webcam-based face detection.
+- **Optional Pi Agent**: GPIO PIR-sensor presence as an alternative
+  to the webcam-based face detection. See [`agent/README.md`](agent/README.md).
 
 The web client runs entirely in the browser — no custom server required
 beyond your existing Synapse homeserver.
@@ -81,7 +81,7 @@ web/      — Svelte 5 web client
   src/
     lib/    — matrix client, store, input handling, presence, ringtone
     routes/ — one Svelte component per screen (Idle, Ringing, Call, …)
-agent/    — Optional Pi Agent (Python, PIR sensor) [planned]
+agent/    — Optional Pi Agent (Python, PIR sensor over WebSocket)
 kiosk/    — Raspberry Pi kiosk setup scripts
 nix/      — Nix derivation + NixOS module for serving the web client
 ```
