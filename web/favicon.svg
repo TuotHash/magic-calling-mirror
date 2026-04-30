@@ -1,33 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%">
-  <defs>
-    <!-- Cyber-Magic Gradient -->
-    <linearGradient id="magicGlow" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#00FFAA" />
-      <stop offset="50%" stop-color="#00AAFF" />
-      <stop offset="100%" stop-color="#AA00FF" />
-    </linearGradient>
-    
-    <!-- Magical Glow Filter -->
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="2.5" result="blur" />
-      <feComposite in="SourceGraphic" in2="blur" operator="over" />
-    </filter>
-  </defs>
-
-  <!-- Dark Mirror Glass Background -->
-  <rect width="64" height="64" rx="14" fill="#0A0A10" />
-
-  <!-- The Magic 'M' -->
-  <path d="M 16 48 L 16 20 L 32 36 L 48 20 L 48 48" 
-        stroke="url(#magicGlow)" 
-        stroke-width="5" 
-        stroke-linejoin="round" 
-        stroke-linecap="round" 
-        fill="none" 
-        filter="url(#glow)" />
-
-  <!-- Magical Sparkle / Protocol Node -->
-  <path d="M 32 10 L 34 15 L 39 17 L 34 19 L 32 24 L 30 19 L 25 17 L 30 15 Z" 
-        fill="#FFFFFF" 
-        filter="url(#glow)" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+    <defs>
+        <linearGradient id="a" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#0FA"/>
+            <stop offset="50%" stop-color="#0AF"/>
+            <stop offset="100%" stop-color="#A0F"/>
+        </linearGradient>
+        <filter id="b" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="2.5" result="blur"/>
+            <feComposite in="SourceGraphic" in2="blur"/>
+        </filter>
+    </defs>
+    <rect width="64" height="64" rx="14" fill="#0A0A10"/>
+    <path d="M16 48V20l16 16 16-16v28" stroke="url(#a)" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" fill="none" filter="url(#b)"/>
+    <path d="m32 10 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z" fill="#FFF" filter="url(#b)"/>
 </svg>
