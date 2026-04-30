@@ -31,13 +31,53 @@ export async function fetchLoginFlows(homeserverUrl: string): Promise<LoginFlow[
 }
 
 /**
+ * One entry of `identity_providers[]` on an `m.login.sso` flow. Synapse
+ * populates this from each configured OIDC provider so clients can show
+ * "Sign in with <provider name>" instead of a generic SSO button.
+ */
+export interface SsoIdentityProvider {
+  id: string;
+  name: string;
+  icon?: string;
+  brand?: string;
+}
+
+/**
+ * Extract the identity providers advertised on the SSO flow, if any.
+ *  - returns `null` if SSO isn't offered at all
+ *  - returns `[]` if SSO is offered but with no per-IdP entries (the
+ *    homeserver expects clients to use the generic redirect endpoint)
+ *  - returns a populated array when one or more named providers exist
+ */
+export function getSsoIdentityProviders(
+  flows: LoginFlow[],
+): SsoIdentityProvider[] | null {
+  const sso = flows.find((f) => f.type === "m.login.sso") as
+    | (LoginFlow & { identity_providers?: SsoIdentityProvider[] })
+    | undefined;
+  if (!sso) return null;
+  return sso.identity_providers ?? [];
+}
+
+/**
  * Build the SSO redirect URL. After the user authenticates with the OIDC
  * provider, Synapse redirects back to `redirectUrl` with `?loginToken=...`.
+ *
+ * If `idpId` is provided, the per-provider redirect endpoint is used so
+ * Synapse skips its built-in IdP-picker page and goes straight to the
+ * named provider.
  */
-export function buildSsoRedirectUrl(homeserverUrl: string, redirectUrl: string): string {
+export function buildSsoRedirectUrl(
+  homeserverUrl: string,
+  redirectUrl: string,
+  idpId?: string,
+): string {
   const base = stripTrailingSlash(homeserverUrl);
   const r = encodeURIComponent(redirectUrl);
-  return `${base}/_matrix/client/v3/login/sso/redirect?redirectUrl=${r}`;
+  const path = idpId
+    ? `/_matrix/client/v3/login/sso/redirect/${encodeURIComponent(idpId)}`
+    : `/_matrix/client/v3/login/sso/redirect`;
+  return `${base}${path}?redirectUrl=${r}`;
 }
 
 /**

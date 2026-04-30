@@ -4,14 +4,17 @@
   import {
     fetchLoginFlows,
     buildSsoRedirectUrl,
+    getSsoIdentityProviders,
     loginWithPassword,
     loginWithToken,
     startClient,
+    type SsoIdentityProvider,
   } from "../lib/matrix";
   import { startPresence } from "../lib/presence";
 
   let busy = $state(true);
   let hasSso = $state(false);
+  let ssoProviders = $state<SsoIdentityProvider[]>([]);
   let hasPassword = $state(false);
   let err = $state<string | null>(null);
 
@@ -40,7 +43,9 @@
 
     try {
       const flows = await fetchLoginFlows(app.config.homeserverUrl);
-      hasSso = flows.some((f) => f.type === "m.login.sso");
+      const providers = getSsoIdentityProviders(flows);
+      hasSso = providers !== null;
+      ssoProviders = providers ?? [];
       hasPassword = flows.some((f) => f.type === "m.login.password");
     } catch (e) {
       err = `Couldn't reach homeserver: ${e}`;
@@ -59,8 +64,12 @@
     startPresence().catch((e) => console.warn("presence unavailable", e));
   }
 
-  function startSso() {
-    const url = buildSsoRedirectUrl(app.config.homeserverUrl, window.location.origin);
+  function startSso(idpId?: string) {
+    const url = buildSsoRedirectUrl(
+      app.config.homeserverUrl,
+      window.location.origin,
+      idpId,
+    );
     window.location.href = url;
   }
 
@@ -107,8 +116,14 @@
     <h1>Sign in</h1>
     <p class="hint">{app.config.homeserverUrl}</p>
 
-    {#if hasSso}
-      <button class="primary" onclick={startSso}>
+    {#if hasSso && ssoProviders.length > 0}
+      {#each ssoProviders as provider (provider.id)}
+        <button class="primary" onclick={() => startSso(provider.id)}>
+          Sign in with {provider.name}
+        </button>
+      {/each}
+    {:else if hasSso}
+      <button class="primary" onclick={() => startSso()}>
         Sign in with single sign-on
       </button>
     {/if}
