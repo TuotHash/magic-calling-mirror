@@ -19,4 +19,9 @@ rm -f /usr/local/bin/magic_mirror_agent.py
 rm -f /etc/magic-mirror/agent.env
 rmdir /etc/magic-mirror 2>/dev/null || true
 
+echo "==> Removing service user"
+if id -u magic-mirror-agent >/dev/null 2>&1; then
+    userdel magic-mirror-agent || true
+fi
+
 echo "Done."

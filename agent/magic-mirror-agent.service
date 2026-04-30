@@ -8,9 +8,21 @@ EnvironmentFile=-/etc/magic-mirror/agent.env
 ExecStart=/usr/local/bin/magic_mirror_agent.py
 Restart=on-failure
 RestartSec=3
-# Root keeps /dev/gpiomem access simple across Pi OS variants. The
-# server only listens on 127.0.0.1, so there's no remote attack surface.
-User=root
+
+User=magic-mirror-agent
+Group=magic-mirror-agent
+SupplementaryGroups=gpio
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
 
 [Install]
 WantedBy=multi-user.target

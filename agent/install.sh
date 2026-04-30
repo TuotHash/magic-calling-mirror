@@ -36,6 +36,16 @@ apt-get install -y --no-install-recommends \
     python3-websockets \
     python3-rpi.gpio
 
+echo "==> Creating service user"
+# System user with no shell, no home — only needs gpio group for /dev/gpiomem.
+if ! id -u magic-mirror-agent >/dev/null 2>&1; then
+    useradd --system --no-create-home --shell /usr/sbin/nologin \
+        --groups gpio magic-mirror-agent
+else
+    # Ensure gpio membership in case the user pre-exists from an older install.
+    usermod -aG gpio magic-mirror-agent
+fi
+
 echo "==> Installing agent script"
 install -m 0755 "$SCRIPT_DIR/magic_mirror_agent.py" /usr/local/bin/magic_mirror_agent.py
 
