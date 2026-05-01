@@ -90,7 +90,8 @@ apt-get install -y --no-install-recommends \
     x11-xserver-utils \
     openbox \
     unclutter \
-    fonts-dejavu
+    fonts-dejavu \
+    bluez
 
 # Pi OS / Debian renamed the package from `chromium-browser` to `chromium`
 # around Trixie. Try the new name first, fall back to the old.
@@ -158,6 +159,9 @@ if [ -z "${DISPLAY:-}" ] && [ "$(tty)" = "/dev/tty1" ]; then
 fi
 EOF
 chown -R "$MIRROR_USER:$MIRROR_USER" "/home/$MIRROR_USER"
+
+echo "==> Enabling bluetooth (required for SSO passkey via phone over caBLE)"
+systemctl enable --now bluetooth.service >/dev/null
 
 echo "==> Enabling autologin for $MIRROR_USER on tty1"
 mkdir -p /etc/systemd/system/getty@tty1.service.d

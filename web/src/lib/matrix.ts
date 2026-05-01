@@ -272,9 +272,30 @@ export async function placeCall(userId: string): Promise<void> {
   if (!call) throw new Error("WebRTC not supported in this browser");
 
   attachCallLifecycle(call);
+
+  try {
+    // matrix-js-sdk's placeCall calls getUserMedia internally. If the user
+    // dismissed the presence camera prompt earlier, the browser re-prompts
+    // here; if they explicitly blocked access, this rejects immediately.
+    // Either way we want the prompt to appear over the contact wheel — not
+    // a half-rendered call view — so don't switch the view until it resolves.
+    await call.placeCall(true, true); // audio + video
+  } catch (err: any) {
+    try { call.hangup("user_hangup" as any, false); } catch { /* ignore */ }
+    if (
+      err?.name === "NotAllowedError" ||
+      err?.name === "NotFoundError" ||
+      /permission|denied|allowed|user media/i.test(err?.message ?? "")
+    ) {
+      throw new Error(
+        "Camera and microphone access are required for calls. Allow access in your browser and try again.",
+      );
+    }
+    throw err;
+  }
+
   app.activeCall = call;
   app.setView("call");
-  await call.placeCall(true, true); // audio + video
 
   // Bail out if the remote never picks up. The State listener in
   // attachCallLifecycle clears this once we connect.
