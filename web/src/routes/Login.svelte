@@ -21,6 +21,7 @@
   let username = $state("");
   let password = $state("");
   let submitting = $state(false);
+  let wrapEl = $state<HTMLElement | undefined>();
 
   onMount(async () => {
     const params = new URLSearchParams(window.location.search);
@@ -52,6 +53,11 @@
     } finally {
       busy = false;
     }
+
+    // Auto-focus the first input/primary button so Enter activates it
+    // without needing a mouse or Tab.
+    await Promise.resolve();
+    wrapEl?.querySelector<HTMLElement>("input, button.primary")?.focus();
   });
 
   async function finishLogin(creds: { userId: string; accessToken: string; deviceId: string }) {
@@ -100,7 +106,7 @@
   }
 </script>
 
-<div class="wrap">
+<div class="wrap" bind:this={wrapEl}>
   {#if busy}
     <p>Signing in…</p>
   {:else if err && !hasSso && !hasPassword}
