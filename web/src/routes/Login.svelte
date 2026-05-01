@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { app } from "../lib/store.svelte";
   import {
     fetchLoginFlows,
@@ -11,6 +11,7 @@
     type SsoIdentityProvider,
   } from "../lib/matrix";
   import { startPresence } from "../lib/presence";
+  import { onInput } from "../lib/input";
 
   let busy = $state(true);
   let hasSso = $state(false);
@@ -59,6 +60,36 @@
     await Promise.resolve();
     wrapEl?.querySelector<HTMLElement>("input, button.primary")?.focus();
   });
+
+  function focusables(): HTMLElement[] {
+    if (!wrapEl) return [];
+    return Array.from(
+      wrapEl.querySelectorAll<HTMLElement>(
+        "input:not([disabled]), button:not([disabled])",
+      ),
+    );
+  }
+
+  const off = onInput((evt) => {
+    const items = focusables();
+    if (items.length === 0) return;
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const idx = active ? items.indexOf(active) : -1;
+    switch (evt) {
+      case "next":
+        items[idx < 0 ? 0 : (idx + 1) % items.length]?.focus();
+        break;
+      case "prev":
+        items[idx < 0 ? items.length - 1 : (idx - 1 + items.length) % items.length]?.focus();
+        break;
+      case "select":
+        // Reached only when no input/button is focused — otherwise the
+        // browser handles Enter natively. Fall back to the primary action.
+        wrapEl?.querySelector<HTMLElement>("button.primary")?.click();
+        break;
+    }
+  });
+  onDestroy(off);
 
   async function finishLogin(creds: { userId: string; accessToken: string; deviceId: string }) {
     app.config.userId = creds.userId;

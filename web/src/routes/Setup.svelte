@@ -1,15 +1,42 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import { app } from "../lib/store.svelte";
   import { fetchLoginFlows } from "../lib/matrix";
+  import { onInput } from "../lib/input";
 
   let url = $state("https://matrix.org");
   let busy = $state(false);
   let err = $state<string | null>(null);
   let inputEl: HTMLInputElement;
+  let wrapEl: HTMLElement;
 
   $effect(() => {
     inputEl?.focus();
   });
+
+  const off = onInput((evt) => {
+    if (!wrapEl) return;
+    const items = Array.from(
+      wrapEl.querySelectorAll<HTMLElement>(
+        "input:not([disabled]), button:not([disabled])",
+      ),
+    );
+    if (items.length === 0) return;
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const idx = active ? items.indexOf(active) : -1;
+    switch (evt) {
+      case "next":
+        items[idx < 0 ? 0 : (idx + 1) % items.length]?.focus();
+        break;
+      case "prev":
+        items[idx < 0 ? items.length - 1 : (idx - 1 + items.length) % items.length]?.focus();
+        break;
+      case "select":
+        wrapEl.querySelector<HTMLButtonElement>("button.primary")?.click();
+        break;
+    }
+  });
+  onDestroy(off);
 
   async function next(event?: SubmitEvent) {
     event?.preventDefault();
@@ -31,7 +58,7 @@
   }
 </script>
 
-<div class="wrap">
+<div class="wrap" bind:this={wrapEl}>
   <h1>Magic Mirror</h1>
   <p class="hint">Enter your Matrix homeserver URL to begin.</p>
 
