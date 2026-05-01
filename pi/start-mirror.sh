@@ -4,13 +4,21 @@
 
 set -eu
 
-URL_FILE="/etc/magic-mirror/url"
-if [ ! -r "$URL_FILE" ]; then
-    echo "start-mirror: $URL_FILE missing — re-run kiosk/install.sh" >&2
-    exec xterm -e "echo 'Configure $URL_FILE then reboot'; sleep 30"
+CONFIG_FILE="/etc/magic-mirror/config"
+if [ ! -r "$CONFIG_FILE" ]; then
+    echo "start-mirror: $CONFIG_FILE missing — re-run pi/install.sh" >&2
+    exec xterm -e "echo 'Configure $CONFIG_FILE then reboot'; sleep 30"
 fi
 
-MIRROR_URL=$(cat "$URL_FILE")
+# shellcheck disable=SC1090
+. "$CONFIG_FILE"
+
+URL="$MIRROR_URL"
+if [ "${AGENT_ENABLED:-false}" = "true" ]; then
+    sep="?"
+    case "$URL" in *\?*) sep="&" ;; esac
+    URL="${URL}${sep}presenceAgentUrl=ws://127.0.0.1:${AGENT_WS_PORT:-8765}"
+fi
 
 xset s off
 xset s noblank
@@ -30,4 +38,4 @@ exec chromium-browser \
     --use-fake-ui-for-media-stream \
     --autoplay-policy=no-user-gesture-required \
     --user-data-dir=/home/mirror/.chromium-mirror \
-    --app="$MIRROR_URL"
+    --app="$URL"

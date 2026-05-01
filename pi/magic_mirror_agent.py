@@ -7,8 +7,8 @@ client opens this socket and uses the events to drive its dim/wake
 behaviour, in place of the in-browser MediaPipe face detector.
 
 Wire your PIR module's OUT pin to GPIO17 (BCM) by default, VCC to 5V,
-GND to GND. Override via env vars (MIRROR_AGENT_PIN, MIRROR_AGENT_PORT)
-or CLI flags.
+GND to GND. Override via env vars (AGENT_GPIO_PIN, AGENT_WS_PORT) or
+CLI flags.
 """
 
 from __future__ import annotations
@@ -109,13 +109,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--pin",
         type=int,
-        default=int(os.environ.get("MIRROR_AGENT_PIN", "17")),
+        default=int(os.environ.get("AGENT_GPIO_PIN", "17")),
         help="BCM GPIO pin connected to PIR OUT (default: 17)",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=int(os.environ.get("MIRROR_AGENT_PORT", "8765")),
+        default=int(os.environ.get("AGENT_WS_PORT", "8765")),
         help="WebSocket port, bound to 127.0.0.1 (default: 8765)",
     )
     args = parser.parse_args()

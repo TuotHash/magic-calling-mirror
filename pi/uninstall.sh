@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Reverses what install.sh did. Leaves the `mirror` user's home dir
-# alone (in case there's a Chromium profile worth keeping); pass --purge
-# to nuke that too.
+# Reverses what install.sh did. Removes the kiosk and the optional PIR
+# agent if it was installed. Leaves the `mirror` user's home dir alone
+# (in case there's a Chromium profile worth keeping); pass --purge to
+# nuke that too.
 #
 # Usage:  sudo ./uninstall.sh [--purge]
 
@@ -15,12 +16,22 @@ fi
 PURGE=0
 [ "${1:-}" = "--purge" ] && PURGE=1
 
+if [ -f /etc/systemd/system/magic-mirror-agent.service ]; then
+    echo "==> Removing PIR agent"
+    systemctl disable --now magic-mirror-agent.service 2>/dev/null || true
+    rm -f /etc/systemd/system/magic-mirror-agent.service
+    rm -f /usr/local/bin/magic_mirror_agent.py
+    if id -u magic-mirror-agent >/dev/null 2>&1; then
+        userdel magic-mirror-agent || true
+    fi
+fi
+
 echo "==> Disabling autologin"
 rm -f /etc/systemd/system/getty@tty1.service.d/override.conf
 rmdir /etc/systemd/system/getty@tty1.service.d 2>/dev/null || true
 systemctl daemon-reload
 
-echo "==> Removing /usr/local/bin/start-mirror.sh and /etc/magic-mirror"
+echo "==> Removing kiosk launcher and config"
 rm -f /usr/local/bin/start-mirror.sh
 rm -rf /etc/magic-mirror
 

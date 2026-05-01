@@ -31,7 +31,7 @@ export interface AppConfig {
   /**
    * Optional Pi Agent presence WebSocket URL (e.g. ws://127.0.0.1:8765).
    * When set, PIR-based presence drives dim/wake instead of MediaPipe.
-   * Set via `?presenceAgentUrl=…` once on first load — see agent/README.md.
+   * Set via `?presenceAgentUrl=…` once on first load — see pi/README.md.
    */
   presenceAgentUrl: string;
 }

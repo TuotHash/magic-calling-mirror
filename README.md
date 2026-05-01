@@ -5,8 +5,9 @@ A Matrix-powered video call client for magic mirrors that lets anyone
 receive video calls effortlessly. Built for kiosk-style installs in a
 hallway, kitchen, or living room.
 
-> **Disclaimer:** This project contains code written with AI assistance.
-> Review before deploying to anything you care about.
+> **Disclaimer:** This project contains code written by AI.
+> I don't really like to code.
+> I can't say anything about it's security.
 
 ## What it is
 
@@ -14,10 +15,10 @@ hallway, kitchen, or living room.
   Matrix call client. Rings through only your configured contacts, shows
   a contact wheel for outgoing calls, detects presence via webcam, and
   dims when no one is around.
-- **Kiosk scripts**: turn a Raspberry Pi 4 (or any mini PC) into a
-  dedicated mirror with a single install script.
-- **Optional Pi Agent**: GPIO PIR-sensor presence as an alternative
-  to the webcam-based face detection. See [`agent/README.md`](agent/README.md).
+- **Pi setup**: turns a Raspberry Pi 4 (or any mini PC) into a dedicated
+  mirror with a single install script. Optional PIR motion-sensor
+  presence agent for lower CPU and a camera-free dim/wake. See
+  [`pi/README.md`](pi/README.md).
 
 The web client runs entirely in the browser — no custom server required
 beyond your existing Synapse homeserver.
@@ -86,8 +87,7 @@ web/      — Svelte 5 web client
   src/
     lib/    — matrix client, store, input handling, presence, ringtone
     routes/ — one Svelte component per screen (Idle, Ringing, Call, …)
-agent/    — Optional Pi Agent (Python, PIR sensor over WebSocket)
-kiosk/    — Raspberry Pi kiosk setup scripts
+pi/       — Raspberry Pi kiosk setup scripts + optional PIR presence agent
 nix/      — Nix derivation + NixOS module for serving the web client
 ```
 
@@ -128,8 +128,9 @@ Just want the static files? `nix-build` from the repo root produces
 
 ## Pi kiosk
 
-See [`kiosk/README.md`](kiosk/README.md) for a full guide on turning a
-Raspberry Pi OS Lite install into a dedicated mirror.
+See [`pi/README.md`](pi/README.md) for a full guide on turning a
+Raspberry Pi OS Lite install into a dedicated mirror, with the optional
+PIR-based presence agent.
 
 ## Caller security
 

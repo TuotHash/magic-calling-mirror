@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-EnvironmentFile=-/etc/magic-mirror/agent.env
+EnvironmentFile=-/etc/magic-mirror/config
 ExecStart=/usr/local/bin/magic_mirror_agent.py
 Restart=on-failure
 RestartSec=3
