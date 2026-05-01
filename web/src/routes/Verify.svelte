@@ -142,7 +142,18 @@
   {:else if mode === "key"}
     <h2>Recovery key</h2>
     <p class="hint">Paste the recovery key from Element. Spaces are OK.</p>
-    <textarea bind:value={recoveryKey} placeholder="EsT… …" autocomplete="off" spellcheck="false"></textarea>
+    <textarea
+      bind:value={recoveryKey}
+      placeholder="EsT… …"
+      autocomplete="off"
+      spellcheck="false"
+      onkeydown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          submitKey();
+        }
+      }}
+    ></textarea>
     {#if localError}<p class="error">{localError}</p>{/if}
     <div class="row">
       <button onclick={() => { mode = "menu"; localError = null; }} disabled={busy}>Back</button>

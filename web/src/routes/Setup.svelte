@@ -11,7 +11,9 @@
     inputEl?.focus();
   });
 
-  async function next() {
+  async function next(event?: SubmitEvent) {
+    event?.preventDefault();
+    if (busy) return;
     busy = true;
     err = null;
     try {
@@ -33,16 +35,18 @@
   <h1>Magic Mirror</h1>
   <p class="hint">Enter your Matrix homeserver URL to begin.</p>
 
-  <input
-    bind:this={inputEl}
-    type="url"
-    bind:value={url}
-    placeholder="https://matrix.example.com"
-  />
+  <form onsubmit={next}>
+    <input
+      bind:this={inputEl}
+      type="url"
+      bind:value={url}
+      placeholder="https://matrix.example.com"
+    />
 
-  <button class="primary" onclick={next} disabled={busy}>
-    {busy ? "Checking…" : "Continue"}
-  </button>
+    <button class="primary" type="submit" disabled={busy}>
+      {busy ? "Checking…" : "Continue"}
+    </button>
+  </form>
 
   {#if err}<p class="err">{err}</p>{/if}
 </div>
@@ -59,6 +63,13 @@
   }
   h1 { font-size: 3rem; font-weight: 200; letter-spacing: -0.02em; }
   .hint { color: var(--muted); }
+  form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+    width: 100%;
+  }
   input { width: min(480px, 90%); font-size: 1.25rem; }
   .primary {
     background: var(--accent);
