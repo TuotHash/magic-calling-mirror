@@ -26,9 +26,17 @@ xset -dpms
 
 unclutter -idle 0 -root >/dev/null 2>&1 &
 
+# Pi OS / Debian renamed the binary from `chromium-browser` to `chromium`
+# around Trixie. Pick whichever exists.
+CHROMIUM="$(command -v chromium || command -v chromium-browser || true)"
+if [ -z "$CHROMIUM" ]; then
+    echo "start-mirror: no chromium binary found — re-run pi/install.sh" >&2
+    exec xterm -e "echo 'Install chromium then reboot'; sleep 30"
+fi
+
 # --use-fake-ui-for-media-stream auto-grants camera + mic without a prompt.
 # This is safe here because the kiosk only ever loads the configured URL.
-exec chromium-browser \
+exec "$CHROMIUM" \
     --kiosk \
     --noerrdialogs \
     --disable-infobars \

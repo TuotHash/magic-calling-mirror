@@ -89,9 +89,13 @@ apt-get install -y --no-install-recommends \
     xinit \
     x11-xserver-utils \
     openbox \
-    chromium-browser \
     unclutter \
     fonts-dejavu
+
+# Pi OS / Debian renamed the package from `chromium-browser` to `chromium`
+# around Trixie. Try the new name first, fall back to the old.
+apt-get install -y --no-install-recommends chromium \
+    || apt-get install -y --no-install-recommends chromium-browser
 
 if [ "$AGENT_ENABLED" = "true" ]; then
     echo "==> Installing agent packages"
