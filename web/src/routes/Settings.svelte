@@ -22,6 +22,29 @@
     app.persist();
   }
 
+  function toggleAutoAnswer() {
+    app.config.autoAnswer = !app.config.autoAnswer;
+    app.persist();
+  }
+
+  function togglePresence() {
+    app.config.presenceEnabled = !app.config.presenceEnabled;
+    // Pin the screen lit immediately when turning detection off, so the
+    // change is visible without waiting for a reload.
+    if (!app.config.presenceEnabled) app.presenceActive = true;
+    app.persist();
+  }
+
+  function toggleQuiet() {
+    app.config.quietHoursEnabled = !app.config.quietHoursEnabled;
+    app.persist();
+  }
+
+  function onTimeChange() {
+    // Bound via bind:value — Svelte already updated the field; just persist.
+    app.persist();
+  }
+
   async function doLogout() {
     if (!confirmLogout) {
       confirmLogout = true;
@@ -73,8 +96,11 @@
 
   const SAVE_POS = $derived(candidates.length);
   const VERIFY_POS = $derived(candidates.length + 1);
-  const CLOCK_POS = $derived(candidates.length + 2);
-  const LOGOUT_POS = $derived(candidates.length + 3);
+  const AUTO_ANSWER_POS = $derived(candidates.length + 2);
+  const PRESENCE_POS = $derived(candidates.length + 3);
+  const QUIET_POS = $derived(candidates.length + 4);
+  const CLOCK_POS = $derived(candidates.length + 5);
+  const LOGOUT_POS = $derived(candidates.length + 6);
 
   const off = onInput((evt) => {
     // Reset the "are you sure?" prompt as soon as the user moves off it.
@@ -94,6 +120,9 @@
       case "select":
         if (cursor === SAVE_POS) save();
         else if (cursor === VERIFY_POS) app.setView("verify");
+        else if (cursor === AUTO_ANSWER_POS) toggleAutoAnswer();
+        else if (cursor === PRESENCE_POS) togglePresence();
+        else if (cursor === QUIET_POS) toggleQuiet();
         else if (cursor === CLOCK_POS) toggleClock();
         else if (cursor === LOGOUT_POS) doLogout();
         else toggleAt(cursor);
@@ -153,6 +182,51 @@
     >
       {app.verified ? "Re-verify session" : "Verify session ⚠"}
     </button>
+
+    <button
+      class="toggle"
+      class:active={cursor === AUTO_ANSWER_POS}
+      onclick={toggleAutoAnswer}
+    >
+      Auto-answer calls · <strong>{app.config.autoAnswer ? "on" : "off"}</strong>
+    </button>
+
+    <button
+      class="toggle"
+      class:active={cursor === PRESENCE_POS}
+      onclick={togglePresence}
+    >
+      Face detection · <strong>{app.config.presenceEnabled ? "on" : "off"}</strong>
+    </button>
+
+    <button
+      class="toggle"
+      class:active={cursor === QUIET_POS}
+      onclick={toggleQuiet}
+    >
+      Sleep schedule · <strong>{app.config.quietHoursEnabled ? "on" : "off"}</strong>
+    </button>
+
+    {#if app.config.quietHoursEnabled}
+      <div class="time-row">
+        <label>
+          From
+          <input
+            type="time"
+            bind:value={app.config.quietFrom}
+            onchange={onTimeChange}
+          />
+        </label>
+        <label>
+          Until
+          <input
+            type="time"
+            bind:value={app.config.quietUntil}
+            onchange={onTimeChange}
+          />
+        </label>
+      </div>
+    {/if}
 
     <button
       class="toggle"
@@ -267,6 +341,27 @@
     color: inherit;
   }
   .toggle strong { color: var(--accent); font-weight: 500; }
+
+  .time-row {
+    display: flex;
+    gap: 1.25rem;
+    margin-top: 0.25rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .time-row label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .time-row input {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--fg);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    padding: 0.35rem 0.6rem;
+    font: inherit;
+  }
 
   .logout { color: var(--danger); }
   .logout.active { border-color: var(--danger); }

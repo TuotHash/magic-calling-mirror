@@ -11,7 +11,7 @@ RestartSec=3
 
 User=magic-mirror-agent
 Group=magic-mirror-agent
-SupplementaryGroups=gpio
+SupplementaryGroups=gpio video
 
 NoNewPrivileges=true
 ProtectSystem=strict

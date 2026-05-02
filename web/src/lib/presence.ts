@@ -11,6 +11,10 @@ import { startAgentPresence, stopAgentPresence } from "./agentPresence";
  *
  * The two sources never run simultaneously — picking one at startup
  * keeps the Pi cool.
+ *
+ * When `presenceEnabled` is false, the screen stays lit — no detector
+ * runs and `presenceActive` is pinned true. The agent socket is still
+ * opened (when configured) so `sendAgentCommand` can wake the TV.
  */
 
 const DETECT_INTERVAL_MS = 500;
@@ -23,11 +27,18 @@ let lastFaceAt = 0;
 
 export async function startPresence(): Promise<void> {
   const agentUrl = app.config.presenceAgentUrl?.trim();
-  if (agentUrl) {
-    startAgentPresence(agentUrl);
+  // Always open the agent socket when configured — we need it for
+  // `sendAgentCommand("wake")` even if presence dimming is off.
+  if (agentUrl) startAgentPresence(agentUrl);
+
+  if (!app.config.presenceEnabled) {
+    app.presenceActive = true;
     return;
   }
-  await startCameraPresence();
+
+  // Presence enabled: agent (when present) already drives presenceActive
+  // via its inbound stream. Otherwise fall back to the webcam detector.
+  if (!agentUrl) await startCameraPresence();
 }
 
 export function stopPresence(): void {

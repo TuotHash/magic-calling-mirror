@@ -45,6 +45,12 @@ You'll be asked for:
   to keep using the in-browser MediaPipe face detector.
   - If yes: **GPIO pin** (BCM, default 17) and **WebSocket port**
     (default 8765, loopback-only).
+- **Wake TV via HDMI-CEC on incoming call?** — only offered if the agent
+  is enabled (it's the agent that runs `cec-client`). Installs
+  `cec-utils` and grants the agent's user the `video` group so it can
+  open `/dev/cec0`. The web client sends `{"command":"wake"}` over the
+  same WebSocket on each incoming call; grandpa turns the TV off
+  himself with the remote when the call ends.
 
 Re-running `install.sh` is safe and idempotent — it pulls existing values
 from `/etc/magic-mirror/config` as defaults, so you can flip the agent

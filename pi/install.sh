@@ -59,6 +59,7 @@ EXIST_ROTATE="0"
 EXIST_AGENT="false"
 EXIST_PIN="17"
 EXIST_PORT="8765"
+EXIST_CEC="false"
 if [ -r "$CONFIG_FILE" ]; then
     # shellcheck disable=SC1090
     . "$CONFIG_FILE" || true
@@ -67,6 +68,7 @@ if [ -r "$CONFIG_FILE" ]; then
     EXIST_AGENT="${AGENT_ENABLED:-false}"
     EXIST_PIN="${AGENT_GPIO_PIN:-17}"
     EXIST_PORT="${AGENT_WS_PORT:-8765}"
+    EXIST_CEC="${CEC_ENABLED:-false}"
 fi
 
 prompt MIRROR_URL "Mirror web app URL" "${EXIST_URL:-https://example.com/mirror/}"
@@ -78,6 +80,12 @@ AGENT_WS_PORT="$EXIST_PORT"
 if [ "$AGENT_ENABLED" = "true" ]; then
     prompt AGENT_GPIO_PIN "PIR sensor BCM GPIO pin"      "$EXIST_PIN"
     prompt AGENT_WS_PORT  "WebSocket port (loopback only)" "$EXIST_PORT"
+fi
+# CEC TV wake piggybacks on the agent's WebSocket — only offer it when the
+# agent is enabled, otherwise there's nothing listening for wake commands.
+CEC_ENABLED="false"
+if [ "$AGENT_ENABLED" = "true" ]; then
+    prompt_bool CEC_ENABLED "Wake TV via HDMI-CEC on incoming call?" "$EXIST_CEC"
 fi
 
 echo "==> Installing kiosk packages"
@@ -106,6 +114,11 @@ if [ "$AGENT_ENABLED" = "true" ]; then
         python3-gpiozero \
         python3-websockets \
         python3-rpi.gpio
+fi
+
+if [ "$CEC_ENABLED" = "true" ]; then
+    echo "==> Installing cec-utils for HDMI-CEC TV wake"
+    apt-get install -y --no-install-recommends cec-utils
 fi
 
 # xserver-xorg-legacy ships Xwrapper.config restricted to console; allow
@@ -137,6 +150,7 @@ DISPLAY_ROTATE=$DISPLAY_ROTATE
 AGENT_ENABLED=$AGENT_ENABLED
 AGENT_GPIO_PIN=$AGENT_GPIO_PIN
 AGENT_WS_PORT=$AGENT_WS_PORT
+CEC_ENABLED=$CEC_ENABLED
 EOF
 chmod 0644 "$CONFIG_FILE"
 
@@ -195,9 +209,9 @@ if [ "$AGENT_ENABLED" = "true" ]; then
     echo "==> Installing PIR agent"
     if ! id -u magic-mirror-agent >/dev/null 2>&1; then
         useradd --system --no-create-home --shell /usr/sbin/nologin \
-            --groups gpio magic-mirror-agent
+            --groups gpio,video magic-mirror-agent
     else
-        usermod -aG gpio magic-mirror-agent
+        usermod -aG gpio,video magic-mirror-agent
     fi
     install -m 0755 "$SCRIPT_DIR/magic_mirror_agent.py" /usr/local/bin/magic_mirror_agent.py
     install -m 0644 "$SCRIPT_DIR/magic-mirror-agent.service" \

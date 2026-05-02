@@ -8,6 +8,8 @@ import {
   type LoginFlow,
 } from "matrix-js-sdk";
 import { app } from "./store.svelte";
+import { sendAgentCommand } from "./agentPresence";
+import { inQuietHours } from "./quietHours";
 
 // matrix-js-sdk doesn't re-export CallEventHandlerEvent, but the underlying
 // emitter just uses the string "Call.incoming". Subscribe by name.
@@ -220,8 +222,21 @@ function handleIncomingCall(call: MatrixCall) {
 
   if (!app.config.autoAnswer) return;
 
+  // Quiet hours: silently ignore — caller hears it ring out, grandpa
+  // isn't woken, TV stays off. Same effect as autoAnswer=false.
+  if (
+    app.config.quietHoursEnabled &&
+    inQuietHours(new Date(), app.config.quietFrom, app.config.quietUntil)
+  ) {
+    console.info("ignoring incoming call: quiet hours");
+    return;
+  }
+
   attachCallLifecycle(call);
   app.activeCall = call;
+  // Best-effort TV wake via the Pi Agent — no-op if the agent isn't
+  // running or CEC isn't enabled. Fire and forget.
+  sendAgentCommand("wake");
   // Show the ringing splash; the Ringing view itself will call answerActiveCall
   // after the configured delay.
   app.setView("ringing");
