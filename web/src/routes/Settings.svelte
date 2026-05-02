@@ -3,16 +3,21 @@
   import { app } from "../lib/store.svelte";
   import {
     fetchAvatarBlobUrl,
+    listCandidateRooms,
     listDmCandidates,
     logout,
+    recomputeWhitelist,
     type CandidateContact,
+    type CandidateRoom,
   } from "../lib/matrix";
   import { onInput } from "../lib/input";
 
+  let rooms = $state<CandidateRoom[]>([]);
   let candidates = $state<CandidateContact[]>([]);
   let avatarUrls = $state<Record<string, string>>({});
-  let selected = $state<Set<string>>(
-    new Set(app.config.contacts.map((c) => c.userId)),
+  let selectedRoomId = $state<string | null>(app.config.whitelistRoomId);
+  let selectedManual = $state<Set<string>>(
+    new Set(app.config.manualContacts.map((c) => c.userId)),
   );
   let cursor = $state(0);
   let confirmLogout = $state(false);
@@ -81,11 +86,41 @@
   onMount(() => {
     if (!app.client) return;
     const client = app.client;
-    candidates = listDmCandidates(client);
-    // Place cursor on first selected entry, if any.
-    const idx = candidates.findIndex((c) => selected.has(c.userId));
-    if (idx >= 0) cursor = idx;
+    rooms = listCandidateRooms(client);
 
+    // Manual candidates = current DM peers, plus any already-selected manual
+    // contacts who aren't current DM peers (so the user can still deselect
+    // them). Sorted by display name across the union.
+    const dms = listDmCandidates(client);
+    const dmIds = new Set(dms.map((c) => c.userId));
+    const orphaned: CandidateContact[] = app.config.manualContacts
+      .filter((c) => !dmIds.has(c.userId))
+      .map((c) => ({
+        userId: c.userId,
+        displayName: c.displayName,
+        avatarMxc: c.avatarMxc,
+      }));
+    candidates = [...dms, ...orphaned].sort((a, b) =>
+      a.displayName.localeCompare(b.displayName),
+    );
+
+    // Place cursor on the currently-selected room, else first selected manual
+    // contact, else top.
+    const roomIdx = rooms.findIndex((r) => r.roomId === selectedRoomId);
+    if (roomIdx >= 0) cursor = roomIdx;
+    else {
+      const manualIdx = candidates.findIndex((c) => selectedManual.has(c.userId));
+      if (manualIdx >= 0) cursor = rooms.length + manualIdx;
+    }
+
+    // Avatars: rooms keyed by roomId, contacts keyed by userId — disjoint
+    // because the userId form is `@x:host` and roomId is `!x:host`.
+    for (const r of rooms) {
+      if (!r.avatarMxc) continue;
+      fetchAvatarBlobUrl(client, r.avatarMxc, 128).then((url) => {
+        if (url) avatarUrls = { ...avatarUrls, [r.roomId]: url };
+      });
+    }
     for (const c of candidates) {
       if (!c.avatarMxc) continue;
       fetchAvatarBlobUrl(client, c.avatarMxc, 128).then((url) => {
@@ -98,28 +133,42 @@
     for (const url of Object.values(avatarUrls)) URL.revokeObjectURL(url);
   });
 
-  function toggleAt(i: number) {
+  function toggleRoomAt(i: number) {
+    const r = rooms[i];
+    if (!r) return;
+    // Click-to-toggle: clicking the selected room clears the selection so
+    // the user can run with manual contacts only (no shared room).
+    selectedRoomId = selectedRoomId === r.roomId ? null : r.roomId;
+  }
+
+  function toggleManualAt(i: number) {
     const c = candidates[i];
     if (!c) return;
-    const next = new Set(selected);
+    const next = new Set(selectedManual);
     if (next.has(c.userId)) next.delete(c.userId);
     else next.add(c.userId);
-    selected = next;
+    selectedManual = next;
   }
 
   function save() {
-    app.config.contacts = candidates
-      .filter((c) => selected.has(c.userId))
+    app.config.whitelistRoomId = selectedRoomId;
+    app.config.manualContacts = candidates
+      .filter((c) => selectedManual.has(c.userId))
       .map((c) => ({
         userId: c.userId,
         displayName: c.displayName,
         avatarMxc: c.avatarMxc,
       }));
     app.persist();
+    if (app.client) recomputeWhitelist(app.client);
     app.setView("idle");
   }
 
-  const SAVE_POS = $derived(candidates.length);
+  const selectedRoom = $derived(
+    rooms.find((r) => r.roomId === selectedRoomId) ?? null,
+  );
+
+  const SAVE_POS = $derived(rooms.length + candidates.length);
   const VERIFY_POS = $derived(SAVE_POS + 1);
   const AUTO_ANSWER_POS = $derived(VERIFY_POS + 1);
   const PRESENCE_POS = $derived(AUTO_ANSWER_POS + 1);
@@ -164,7 +213,7 @@
     // Reset the "are you sure?" prompt as soon as the user moves off it.
     if (evt !== "select") confirmLogout = false;
 
-    if (candidates.length === 0) {
+    if (rooms.length === 0 && candidates.length === 0) {
       if (evt === "back") app.setView("idle");
       return;
     }
@@ -187,7 +236,8 @@
           editingTime = { field: "until", segment: "h" };
         else if (cursor === CLOCK_POS) toggleClock();
         else if (cursor === LOGOUT_POS) doLogout();
-        else toggleAt(cursor);
+        else if (cursor < rooms.length) toggleRoomAt(cursor);
+        else toggleManualAt(cursor - rooms.length);
         break;
       case "back":
         app.setView("idle");
@@ -198,43 +248,98 @@
 </script>
 
 <div class="wrap">
-  <h2>Choose contacts</h2>
-  <p class="hint">Choose who can be called from this mirror</p>
+  <h2>Trusted callers</h2>
+  <p class="hint">
+    Anyone in the contacts room <em>or</em> on the private list can ring through.
+  </p>
 
-  {#if candidates.length === 0}
+  {#if rooms.length === 0 && candidates.length === 0}
     <p class="empty">
-      No DMs found on this account. Start a 1:1 chat from another Matrix client
-      first, then come back here.
+      No rooms or DM contacts found. From another Matrix client (e.g. Element
+      on your phone), create a contacts room <em>or</em> start a 1:1 chat with
+      someone you want to be able to call, then come back here.
     </p>
     <button onclick={() => app.setView("idle")}>Back</button>
   {:else}
-    <ul>
-      {#each candidates as c, i}
-        <li
-          class:active={i === cursor}
-          class:on={selected.has(c.userId)}
-          onclick={() => toggleAt(i)}
-          role="button"
-          tabindex="-1"
-        >
-          {#if avatarUrls[c.userId]}
-            <img src={avatarUrls[c.userId]} alt="" />
-          {:else}
-            <div class="placeholder">{c.displayName.charAt(0).toUpperCase()}</div>
-          {/if}
-          <div class="meta">
-            <div class="name">{c.displayName}</div>
-            <div class="id">{c.userId}</div>
-          </div>
-          <div class="check" aria-hidden="true">
-            {selected.has(c.userId) ? "✓" : ""}
-          </div>
-        </li>
-      {/each}
-    </ul>
+    <h3>Contacts room</h3>
+    <p class="sub-hint">
+      Joined members can call. Invite or kick from any Matrix client.
+    </p>
+    {#if rooms.length === 0}
+      <p class="empty-section">No rooms with other members yet.</p>
+    {:else}
+      <ul>
+        {#each rooms as r, i}
+          <li
+            class:active={i === cursor}
+            class:on={r.roomId === selectedRoomId}
+            onclick={() => toggleRoomAt(i)}
+            role="button"
+            tabindex="-1"
+          >
+            {#if avatarUrls[r.roomId]}
+              <img src={avatarUrls[r.roomId]} alt="" />
+            {:else}
+              <div class="placeholder">{r.name.charAt(0).toUpperCase()}</div>
+            {/if}
+            <div class="meta">
+              <div class="name">{r.name}</div>
+              <div class="id">{r.others} {r.others === 1 ? "member" : "members"}</div>
+            </div>
+            <div class="check" aria-hidden="true">
+              {r.roomId === selectedRoomId ? "●" : "○"}
+            </div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+
+    <h3>Private contacts</h3>
+    <p class="sub-hint">
+      For callers who shouldn't appear in the room's member list.
+    </p>
+    {#if candidates.length === 0}
+      <p class="empty-section">
+        No DM peers. Start a 1:1 chat from another Matrix client to add one.
+      </p>
+    {:else}
+      <ul>
+        {#each candidates as c, i}
+          {@const pos = rooms.length + i}
+          <li
+            class:active={pos === cursor}
+            class:on={selectedManual.has(c.userId)}
+            onclick={() => toggleManualAt(i)}
+            role="button"
+            tabindex="-1"
+          >
+            {#if avatarUrls[c.userId]}
+              <img src={avatarUrls[c.userId]} alt="" />
+            {:else}
+              <div class="placeholder">{c.displayName.charAt(0).toUpperCase()}</div>
+            {/if}
+            <div class="meta">
+              <div class="name">{c.displayName}</div>
+              <div class="id">{c.userId}</div>
+            </div>
+            <div class="check" aria-hidden="true">
+              {selectedManual.has(c.userId) ? "✓" : ""}
+            </div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
 
     <button class="save" class:active={cursor === SAVE_POS} onclick={save}>
-      Save · {selected.size} selected
+      {#if selectedRoom && selectedManual.size > 0}
+        Save · {selectedRoom.others} in room + {selectedManual.size} private
+      {:else if selectedRoom}
+        Save · {selectedRoom.others} in room
+      {:else if selectedManual.size > 0}
+        Save · {selectedManual.size} private
+      {:else}
+        Save · none selected
+      {/if}
     </button>
 
     <button
@@ -351,7 +456,32 @@
     overflow-y: auto;
   }
   h2 { font-weight: 200; font-size: 2.25rem; }
+  h3 {
+    font-weight: 300;
+    font-size: 1.15rem;
+    margin: 1.25rem 0 0;
+    align-self: flex-start;
+    width: min(640px, 100%);
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
   .hint { color: var(--muted); margin-bottom: 1rem; }
+  .sub-hint {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin: 0 0 0.25rem;
+    width: min(640px, 100%);
+    align-self: flex-start;
+  }
+  .empty-section {
+    color: var(--muted);
+    font-size: 0.9rem;
+    width: min(640px, 100%);
+    align-self: flex-start;
+    margin: 0;
+    padding: 0.5rem 0;
+  }
 
   ul {
     list-style: none;

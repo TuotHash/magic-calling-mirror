@@ -19,7 +19,26 @@ export interface AppConfig {
   userId: string | null;
   accessToken: string | null;
   deviceId: string | null;
+  /**
+   * Cached whitelist: union of `whitelistRoomId`'s joined members and
+   * `manualContacts`. Persisted so the contact wheel works offline and on the
+   * very first frame of a cold boot, before /sync settles. Rewritten on every
+   * membership event in the whitelist room and whenever the manual list
+   * changes.
+   */
   contacts: Contact[];
+  /**
+   * Matrix room whose joined members (excluding the local user) form one
+   * source of the whitelist. Manage by inviting/kicking from this room in any
+   * Matrix client — changes propagate live to the mirror.
+   */
+  whitelistRoomId: string | null;
+  /**
+   * Per-person whitelist additions for callers who shouldn't appear in the
+   * contacts room's member list (room members can see each other). Picked
+   * from the user's DM peers in the Settings UI.
+   */
+  manualContacts: Contact[];
   /** Auto-answer all incoming calls (M1 default). Will become a whitelist later. */
   autoAnswer: boolean;
   /**
@@ -62,6 +81,8 @@ const DEFAULT_CONFIG: AppConfig = {
   accessToken: null,
   deviceId: null,
   contacts: [],
+  whitelistRoomId: null,
+  manualContacts: [],
   autoAnswer: true,
   presenceEnabled: true,
   dimAfterSeconds: 60,
@@ -80,11 +101,13 @@ export function loadConfig(): AppConfig {
     const parsed = JSON.parse(raw);
     const merged: AppConfig = { ...DEFAULT_CONFIG, ...parsed };
     // Drop the legacy unauthenticated avatar URL field — replaced by avatarMxc.
-    merged.contacts = (parsed.contacts ?? []).map((c: any) => ({
+    const normalize = (c: any): Contact => ({
       userId: c.userId,
       displayName: c.displayName,
       avatarMxc: c.avatarMxc ?? null,
-    }));
+    });
+    merged.contacts = (parsed.contacts ?? []).map(normalize);
+    merged.manualContacts = (parsed.manualContacts ?? []).map(normalize);
     return merged;
   } catch {
     return { ...DEFAULT_CONFIG };

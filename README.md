@@ -134,9 +134,20 @@ PIR-based presence agent.
 
 ## Caller security
 
-Only Matrix users listed in the mirror's configured contact list can ring
-through. Calls from anyone else are silently rejected at the Matrix level —
-no audio, no video, no notification.
+The whitelist has two sources, and a caller passes if they're in **either**:
+
+1. **Contacts room** — the joined members of a configured Matrix room. Add
+   or remove people by inviting/kicking from that room in any Matrix client
+   (e.g. Element on your phone); the mirror picks up membership changes live,
+   no SSH or restart required. Note that room members can see each other in
+   the member list.
+2. **Private contacts** — a per-person list managed in the mirror's Settings
+   screen, populated from your existing DM peers. Use this for callers who
+   shouldn't appear in the shared room (a doctor, a neighbor, etc.). Editing
+   this list requires physical access to the mirror.
+
+Calls from anyone in neither source are silently rejected at the Matrix level
+— no audio, no video, no notification.
 
 ## Licensing
 

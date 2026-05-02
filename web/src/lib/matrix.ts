@@ -8,12 +8,16 @@ import {
   type LoginFlow,
 } from "matrix-js-sdk";
 import { app } from "./store.svelte";
+import type { Contact } from "./config";
 import { sendAgentCommand } from "./agentPresence";
 import { inQuietHours } from "./quietHours";
 
 // matrix-js-sdk doesn't re-export CallEventHandlerEvent, but the underlying
 // emitter just uses the string "Call.incoming". Subscribe by name.
 const INCOMING_CALL = "Call.incoming";
+// Same trick for RoomMemberEvent.Membership — fires whenever someone
+// joins/leaves/is invited or banned in a room we know about.
+const ROOM_MEMBER_MEMBERSHIP = "RoomMember.membership";
 
 // How long to ring the remote before giving up on an outgoing call.
 const OUTGOING_CALL_TIMEOUT_MS = 30_000;
@@ -164,6 +168,16 @@ export async function startClient(): Promise<MatrixClient> {
   await client.initRustCrypto();
 
   client.on(INCOMING_CALL as any, handleIncomingCall);
+
+  // Whitelist = joined members of `whitelistRoomId` ∪ `manualContacts`. Keep
+  // the merged cache fresh: rebuild after initial sync (room state known) and
+  // on every subsequent membership change in the configured whitelist room.
+  client.once("sync" as any, (state: string) => {
+    if (state === "PREPARED") recomputeWhitelist(client);
+  });
+  client.on(ROOM_MEMBER_MEMBERSHIP as any, (_evt: unknown, member: { roomId: string }) => {
+    if (member.roomId === app.config.whitelistRoomId) recomputeWhitelist(client);
+  });
 
   // Listen for verification requests initiated by another session
   // (e.g. Element X "Verify session"). When one arrives we route to the
@@ -382,6 +396,8 @@ export async function logout(): Promise<void> {
   app.config.accessToken = null;
   app.config.deviceId = null;
   app.config.contacts = [];
+  app.config.whitelistRoomId = null;
+  app.config.manualContacts = [];
   app.persist();
 
   app.setView(app.config.homeserverUrl ? "login" : "setup");
@@ -413,6 +429,14 @@ export function describeCaller(call: MatrixCall): {
   };
 }
 
+export interface CandidateRoom {
+  roomId: string;
+  name: string;
+  /** Joined members other than the local user — preview for the picker UI. */
+  others: number;
+  avatarMxc: string | null;
+}
+
 export interface CandidateContact {
   userId: string;
   displayName: string;
@@ -420,21 +444,20 @@ export interface CandidateContact {
 }
 
 /**
- * Enumerate the user's existing 1:1 DMs as candidate contacts. Reads
- * `m.direct` account data to find direct rooms, then resolves each peer's
- * displayName and avatar via the room's member list.
+ * Enumerate the user's existing 1:1 DMs as candidate manual contacts. Reads
+ * `m.direct` account data, then resolves each peer's displayName/avatar from
+ * the room's member list. Used by Settings to populate the "private contacts"
+ * picker — typing a Matrix ID by dial would be brutal, so we only offer
+ * peers already known via DM.
  */
 export function listDmCandidates(client: MatrixClient): CandidateContact[] {
   const direct = client.getAccountData("m.direct" as any);
   const dmMap = (direct?.getContent() ?? {}) as Record<string, string[]>;
-
   const seen = new Set<string>();
   const out: CandidateContact[] = [];
-
   for (const [userId, roomIds] of Object.entries(dmMap)) {
     if (seen.has(userId)) continue;
     seen.add(userId);
-
     let displayName = userId;
     let avatarMxc: string | null = null;
     for (const roomId of roomIds) {
@@ -447,12 +470,66 @@ export function listDmCandidates(client: MatrixClient): CandidateContact[] {
         break;
       }
     }
-
     out.push({ userId, displayName, avatarMxc });
   }
-
   out.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return out;
+}
+
+/**
+ * Rooms that could plausibly serve as the trusted-contacts room: any room
+ * we've joined that has at least one other joined member. Sorted by name.
+ */
+export function listCandidateRooms(client: MatrixClient): CandidateRoom[] {
+  const me = client.getUserId();
+  const out: CandidateRoom[] = [];
+  for (const room of client.getRooms()) {
+    if (room.getMyMembership() !== "join") continue;
+    const others = room.getJoinedMembers().filter((m) => m.userId !== me).length;
+    if (others === 0) continue;
+    out.push({
+      roomId: room.roomId,
+      name: room.name || room.roomId,
+      others,
+      avatarMxc: room.getMxcAvatarUrl(),
+    });
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
+}
+
+/**
+ * Re-derive `app.config.contacts` as the union of the configured whitelist
+ * room's joined members and `app.config.manualContacts`. Room membership
+ * wins on dedupe (more authoritative display name/avatar). Bails out if a
+ * room is configured but hasn't synced yet — the membership listener retries
+ * once it has, so we don't transiently shrink the cache.
+ */
+export function recomputeWhitelist(client: MatrixClient): void {
+  const roomId = app.config.whitelistRoomId;
+  let roomMembers: Contact[] = [];
+  if (roomId) {
+    const room = client.getRoom(roomId);
+    if (!room) return;
+    const me = client.getUserId();
+    roomMembers = room
+      .getJoinedMembers()
+      .filter((m) => m.userId !== me)
+      .map((m) => ({
+        userId: m.userId,
+        displayName: m.name || m.rawDisplayName || m.userId,
+        avatarMxc: m.getMxcAvatarUrl() ?? null,
+      }));
+  }
+
+  const byId = new Map<string, Contact>();
+  for (const c of app.config.manualContacts) byId.set(c.userId, c);
+  for (const c of roomMembers) byId.set(c.userId, c);
+
+  app.config.contacts = [...byId.values()].sort((a, b) =>
+    a.displayName.localeCompare(b.displayName),
+  );
+  app.persist();
 }
 
 /**
