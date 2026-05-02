@@ -16,6 +16,14 @@
   );
   let cursor = $state(0);
   let confirmLogout = $state(false);
+  // While non-null, prev/next adjusts the focused segment instead of moving
+  // the cursor — lets keyboard-only users edit quiet-hour times. Native
+  // <input type="time"> needs caret/typing or per-segment Tab focus that the
+  // arrow-only rotary contract can't drive.
+  let editingTime = $state<{
+    field: "from" | "until";
+    segment: "h" | "m";
+  } | null>(null);
 
   function toggleClock() {
     app.config.clock24h = !app.config.clock24h;
@@ -37,11 +45,28 @@
 
   function toggleQuiet() {
     app.config.quietHoursEnabled = !app.config.quietHoursEnabled;
+    if (!app.config.quietHoursEnabled) editingTime = null;
     app.persist();
   }
 
-  function onTimeChange() {
-    // Bound via bind:value — Svelte already updated the field; just persist.
+  function timeParts(s: string): [string, string] {
+    const [h = "00", m = "00"] = s.split(":");
+    return [h.padStart(2, "0"), m.padStart(2, "0")];
+  }
+
+  function adjustTime(
+    field: "from" | "until",
+    segment: "h" | "m",
+    delta: number,
+  ) {
+    const key = field === "from" ? "quietFrom" : "quietUntil";
+    const [hStr, mStr] = timeParts(app.config[key]);
+    let h = parseInt(hStr, 10);
+    let m = parseInt(mStr, 10);
+    if (segment === "h") h = (h + delta + 24) % 24;
+    else m = (m + delta + 60) % 60;
+    app.config[key] =
+      `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
     app.persist();
   }
 
@@ -95,14 +120,47 @@
   }
 
   const SAVE_POS = $derived(candidates.length);
-  const VERIFY_POS = $derived(candidates.length + 1);
-  const AUTO_ANSWER_POS = $derived(candidates.length + 2);
-  const PRESENCE_POS = $derived(candidates.length + 3);
-  const QUIET_POS = $derived(candidates.length + 4);
-  const CLOCK_POS = $derived(candidates.length + 5);
-  const LOGOUT_POS = $derived(candidates.length + 6);
+  const VERIFY_POS = $derived(SAVE_POS + 1);
+  const AUTO_ANSWER_POS = $derived(VERIFY_POS + 1);
+  const PRESENCE_POS = $derived(AUTO_ANSWER_POS + 1);
+  const QUIET_POS = $derived(PRESENCE_POS + 1);
+  // Time-field stops only exist while quiet hours is enabled. -1 keeps the
+  // === comparisons in the input switch from ever matching when hidden.
+  const FROM_POS = $derived(
+    app.config.quietHoursEnabled ? QUIET_POS + 1 : -1,
+  );
+  const UNTIL_POS = $derived(
+    app.config.quietHoursEnabled ? QUIET_POS + 2 : -1,
+  );
+  const CLOCK_POS = $derived(
+    QUIET_POS + (app.config.quietHoursEnabled ? 3 : 1),
+  );
+  const LOGOUT_POS = $derived(CLOCK_POS + 1);
 
   const off = onInput((evt) => {
+    // Time-edit mode: prev/next adjusts the focused segment, select advances
+    // hour → minute → exit, back exits without further changes.
+    if (editingTime) {
+      switch (evt) {
+        case "prev":
+          adjustTime(editingTime.field, editingTime.segment, -1);
+          break;
+        case "next":
+          adjustTime(editingTime.field, editingTime.segment, +1);
+          break;
+        case "select":
+          editingTime =
+            editingTime.segment === "h"
+              ? { field: editingTime.field, segment: "m" }
+              : null;
+          break;
+        case "back":
+          editingTime = null;
+          break;
+      }
+      return;
+    }
+
     // Reset the "are you sure?" prompt as soon as the user moves off it.
     if (evt !== "select") confirmLogout = false;
 
@@ -123,6 +181,10 @@
         else if (cursor === AUTO_ANSWER_POS) toggleAutoAnswer();
         else if (cursor === PRESENCE_POS) togglePresence();
         else if (cursor === QUIET_POS) toggleQuiet();
+        else if (cursor === FROM_POS)
+          editingTime = { field: "from", segment: "h" };
+        else if (cursor === UNTIL_POS)
+          editingTime = { field: "until", segment: "h" };
         else if (cursor === CLOCK_POS) toggleClock();
         else if (cursor === LOGOUT_POS) doLogout();
         else toggleAt(cursor);
@@ -208,24 +270,51 @@
     </button>
 
     {#if app.config.quietHoursEnabled}
+      {@const fromParts = timeParts(app.config.quietFrom)}
+      {@const untilParts = timeParts(app.config.quietUntil)}
       <div class="time-row">
-        <label>
-          From
-          <input
-            type="time"
-            bind:value={app.config.quietFrom}
-            onchange={onTimeChange}
-          />
-        </label>
-        <label>
-          Until
-          <input
-            type="time"
-            bind:value={app.config.quietUntil}
-            onchange={onTimeChange}
-          />
-        </label>
+        <button
+          type="button"
+          class="time-field"
+          class:active={cursor === FROM_POS}
+          class:editing={editingTime?.field === "from"}
+          onclick={() => (editingTime = { field: "from", segment: "h" })}
+        >
+          <span class="time-label">From</span>
+          <span
+            class="seg"
+            class:focus={editingTime?.field === "from" &&
+              editingTime.segment === "h"}>{fromParts[0]}</span
+          ><span class="colon">:</span><span
+            class="seg"
+            class:focus={editingTime?.field === "from" &&
+              editingTime.segment === "m"}>{fromParts[1]}</span
+          >
+        </button>
+        <button
+          type="button"
+          class="time-field"
+          class:active={cursor === UNTIL_POS}
+          class:editing={editingTime?.field === "until"}
+          onclick={() => (editingTime = { field: "until", segment: "h" })}
+        >
+          <span class="time-label">Until</span>
+          <span
+            class="seg"
+            class:focus={editingTime?.field === "until" &&
+              editingTime.segment === "h"}>{untilParts[0]}</span
+          ><span class="colon">:</span><span
+            class="seg"
+            class:focus={editingTime?.field === "until" &&
+              editingTime.segment === "m"}>{untilParts[1]}</span
+          >
+        </button>
       </div>
+      {#if editingTime}
+        <p class="edit-hint">
+          Turn the dial to change · press to advance · back to finish
+        </p>
+      {/if}
     {/if}
 
     <button
@@ -346,21 +435,42 @@
     display: flex;
     gap: 1.25rem;
     margin-top: 0.25rem;
-    color: var(--muted);
     font-size: 0.95rem;
   }
-  .time-row label {
-    display: flex;
+  .time-field {
+    display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-  }
-  .time-row input {
+    gap: 0.6rem;
+    padding: 0.45rem 0.9rem;
     background: rgba(255, 255, 255, 0.06);
+    border: 2px solid transparent;
+    border-radius: 8px;
     color: var(--fg);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 6px;
-    padding: 0.35rem 0.6rem;
     font: inherit;
+    font-variant-numeric: tabular-nums;
+  }
+  .time-field.active { border-color: var(--accent); }
+  .time-field.editing {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(93, 208, 255, 0.25);
+  }
+  .time-label { color: var(--muted); }
+  .seg {
+    display: inline-block;
+    min-width: 1.6em;
+    padding: 0.05rem 0.25rem;
+    border-radius: 4px;
+    text-align: center;
+  }
+  .seg.focus {
+    background: var(--accent);
+    color: #000;
+  }
+  .colon { padding: 0 0.05rem; }
+  .edit-hint {
+    margin-top: 0.25rem;
+    color: var(--muted);
+    font-size: 0.8rem;
   }
 
   .logout { color: var(--danger); }
