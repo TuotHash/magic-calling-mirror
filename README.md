@@ -95,7 +95,8 @@ nix/      — Nix derivation + NixOS module for serving the web client
 
 The repo ships a classic-Nix derivation (no flakes) that builds the
 static site, plus a NixOS module that serves it via nginx with sensible
-caching headers and optional ACME certificates.
+caching headers. The module binds nginx to `127.0.0.1:8017` by default,
+expecting an upstream reverse proxy to terminate TLS.
 
 In your `configuration.nix`:
 
@@ -111,17 +112,16 @@ in {
   services.magic-mirror = {
     enable   = true;
     hostName = "mirror.example.com";
-    # enableACME = true;  # default; flip off if TLS is terminated upstream
+    # address = "127.0.0.1";  # default
+    # port    = 8017;         # default
   };
-
-  security.acme.acceptTerms = true;
-  security.acme.defaults.email = "you@example.com";
-  networking.firewall.allowedTCPPorts = [ 80 443 ];
 }
 ```
 
-The browser refuses `getUserMedia` over plain HTTP, so HTTPS is required
-for the camera to work.
+Then point your reverse proxy (Caddy, nginx, Traefik, …) at
+`http://127.0.0.1:8017` and have it handle TLS. The browser refuses
+`getUserMedia` over plain HTTP, so HTTPS at the proxy is required for
+the camera to work.
 
 Just want the static files? `nix-build` from the repo root produces
 `./result/` containing `index.html` + hashed `assets/`.

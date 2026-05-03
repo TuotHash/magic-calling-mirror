@@ -23,13 +23,20 @@ in
       '';
     };
 
-    enableACME = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
+    address = lib.mkOption {
+      type = lib.types.str;
+      default = "127.0.0.1";
       description = ''
-        Whether to provision a Let's Encrypt certificate via ACME and force
-        HTTPS. Requires `security.acme.acceptTerms = true` and a working
-        HTTP-01 challenge path on this host.
+        Address nginx should listen on for this virtualHost. Defaults to
+        loopback so TLS can be terminated by an upstream proxy.
+      '';
+    };
+
+    port = lib.mkOption {
+      type = lib.types.port;
+      default = 8017;
+      description = ''
+        Port nginx should listen on for this virtualHost.
       '';
     };
 
@@ -51,8 +58,10 @@ in
         recommendedGzipSettings = lib.mkDefault true;
         recommendedOptimisation = lib.mkDefault true;
         virtualHosts.${cfg.hostName} = {
-          forceSSL = cfg.enableACME;
-          enableACME = cfg.enableACME;
+          listen = [{
+            addr = cfg.address;
+            port = cfg.port;
+          }];
           root = "${cfg.package}";
 
           # Vite hashes asset filenames, so they're safe to cache forever.
