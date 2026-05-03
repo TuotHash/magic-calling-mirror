@@ -460,11 +460,11 @@
     font-weight: 300;
     font-size: 1.15rem;
     margin: 1.25rem 0 0;
-    align-self: flex-start;
     width: min(640px, 100%);
     color: var(--muted);
     letter-spacing: 0.04em;
     text-transform: uppercase;
+    text-align: center;
   }
   .hint { color: var(--muted); margin-bottom: 1rem; }
   .sub-hint {
@@ -472,15 +472,15 @@
     font-size: 0.85rem;
     margin: 0 0 0.25rem;
     width: min(640px, 100%);
-    align-self: flex-start;
+    text-align: center;
   }
   .empty-section {
     color: var(--muted);
     font-size: 0.9rem;
     width: min(640px, 100%);
-    align-self: flex-start;
     margin: 0;
     padding: 0.5rem 0;
+    text-align: center;
   }
 
   ul {

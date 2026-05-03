@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { app } from "./lib/store.svelte";
+  import { app, pathToView, type AppView } from "./lib/store.svelte";
   import { startClient } from "./lib/matrix";
   import { installInputHandlers } from "./lib/input";
   import { startPresence } from "./lib/presence";
@@ -46,6 +46,9 @@
       }
     });
 
+    // Browser back/forward — sync the view to the URL.
+    window.addEventListener("popstate", () => app.syncViewFromPath());
+
     const params = new URLSearchParams(window.location.search);
 
     // ?presenceAgentUrl=... is the one-time entry point for opting into
@@ -69,6 +72,13 @@
       return;
     }
 
+    // Capture the deep-link target before any auth-driven setView calls
+    // overwrite the URL. Only stable, post-auth screens are honored — the
+    // transient call states (wheel/ringing/call) are driven by Matrix
+    // events, not direct navigation.
+    const requestedView = pathToView(window.location.pathname);
+    const deepLinkable: AppView[] = ["settings", "idle"];
+
     if (!app.config.homeserverUrl) {
       app.setView("setup");
     } else if (!app.config.accessToken) {
@@ -82,6 +92,8 @@
         // calls into encrypted rooms will fail without it.
         if (!app.verified) {
           app.setView("verify");
+        } else if (requestedView && deepLinkable.includes(requestedView)) {
+          app.setView(requestedView);
         } else {
           app.setView(app.config.contacts.length === 0 ? "settings" : "idle");
         }

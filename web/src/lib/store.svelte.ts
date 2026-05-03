@@ -16,6 +16,29 @@ export type AppView =
   | "settings"
   | "verify";
 
+const VIEW_PATHS: Record<AppView, string> = {
+  idle: "/",
+  setup: "/setup",
+  login: "/login",
+  verify: "/verify",
+  wheel: "/wheel",
+  ringing: "/ringing",
+  call: "/call",
+  settings: "/settings",
+};
+
+const PATH_VIEWS: Record<string, AppView> = Object.fromEntries(
+  Object.entries(VIEW_PATHS).map(([v, p]) => [p, v as AppView]),
+);
+
+export function viewToPath(view: AppView): string {
+  return VIEW_PATHS[view];
+}
+
+export function pathToView(path: string): AppView | null {
+  return PATH_VIEWS[path] ?? null;
+}
+
 class AppState {
   config = $state<AppConfig>(loadConfig());
   view = $state<AppView>("setup");
@@ -37,6 +60,20 @@ class AppState {
 
   setView(view: AppView) {
     this.view = view;
+    const path = viewToPath(view);
+    if (
+      typeof window !== "undefined" &&
+      window.location.pathname !== path
+    ) {
+      window.history.pushState({ view }, "", path + window.location.search);
+    }
+  }
+
+  // Used by the popstate listener: update view without pushing a new
+  // history entry, since the browser already navigated.
+  syncViewFromPath() {
+    const view = pathToView(window.location.pathname);
+    if (view) this.view = view;
   }
 }
 
