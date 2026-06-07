@@ -1,4 +1,4 @@
-{ stdenv, lib, nodejs_22, pnpm_9 }:
+{ stdenv, lib, nodejs_22, pnpm, pnpmConfigHook, fetchPnpmDeps }:
 
 stdenv.mkDerivation (finalAttrs: {
   pname = "magic-mirror-web";
@@ -20,17 +20,18 @@ stdenv.mkDerivation (finalAttrs: {
     ];
   };
 
-  pnpmDeps = pnpm_9.fetchDeps {
+  pnpmDeps = fetchPnpmDeps {
     inherit (finalAttrs) pname version src;
-    fetcherVersion = 2;
+    fetcherVersion = 3;
     # If you bump deps, set this to lib.fakeHash, run `nix-build`, and
     # replace it with the hash Nix prints in the error.
-    hash = "sha256-M/W++bXNL56ZDM9Ik+2IzViXK7beWEPE7PGkQdMvZr0=";
+    hash = "sha256-htD4zsqSthfe+W2g6tDqO5GpoLdWNRagWEEaA9N6NFY=";
   };
 
   nativeBuildInputs = [
     nodejs_22
-    pnpm_9.configHook
+    pnpm
+    pnpmConfigHook
   ];
 
   buildPhase = ''
