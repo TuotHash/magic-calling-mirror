@@ -25,7 +25,7 @@ stdenv.mkDerivation (finalAttrs: {
     fetcherVersion = 3;
     # If you bump deps, set this to lib.fakeHash, run `nix-build`, and
     # replace it with the hash Nix prints in the error.
-    hash = "sha256-htD4zsqSthfe+W2g6tDqO5GpoLdWNRagWEEaA9N6NFY=";
+    hash = "sha256-LluZ1jT/bSHF/jIXs30UIxfCJKOWcdghsXBKIcMXCss=";
   };
 
   nativeBuildInputs = [
