@@ -1,4 +1,5 @@
-import type { MatrixClient, MatrixCall, Crypto } from "matrix-js-sdk";
+import type { MatrixClient, MatrixCall } from "matrix-js-sdk";
+import type * as Crypto from "matrix-js-sdk/lib/crypto-api";
 import { loadConfig, saveConfig, type AppConfig } from "./config";
 
 /**

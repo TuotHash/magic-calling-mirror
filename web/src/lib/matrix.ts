@@ -2,11 +2,11 @@ import {
   createClient,
   CallEvent,
   createNewMatrixCall,
-  Crypto,
   type MatrixClient,
   type MatrixCall,
   type LoginFlow,
 } from "matrix-js-sdk";
+import * as Crypto from "matrix-js-sdk/lib/crypto-api";
 import { app } from "./store.svelte";
 import type { Contact } from "./config";
 import { sendAgentCommand } from "./agentPresence";

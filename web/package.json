@@ -12,16 +12,16 @@
     "check": "svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
-    "matrix-js-sdk": "^34.11.1",
-    "@matrix-org/matrix-sdk-crypto-wasm": "^15.1.0",
-    "@mediapipe/tasks-vision": "^0.10.18"
+    "@matrix-org/matrix-sdk-crypto-wasm": "^18.9.0",
+    "@mediapipe/tasks-vision": "^1.1.1",
+    "matrix-js-sdk": "^44.0.0"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^5.0.3",
-    "@tsconfig/svelte": "^5.0.4",
-    "svelte": "^5.16.0",
-    "svelte-check": "^4.1.1",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.7"
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tsconfig/svelte": "^5.0.8",
+    "svelte": "^5.57.2",
+    "svelte-check": "^4.7.7",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.4"
   }
 }

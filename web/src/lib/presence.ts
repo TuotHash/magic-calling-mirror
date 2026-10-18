@@ -60,8 +60,11 @@ async function startCameraPresence(): Promise<void> {
   video.playsInline = true;
   await video.play();
 
+  // Pin the wasm to the exact version of the JS bundle — an unversioned URL
+  // floats to whatever is latest on the CDN, which can mismatch the glue code.
+  // Keep in sync with @mediapipe/tasks-vision in package.json.
   const fileset = await FilesetResolver.forVisionTasks(
-    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm",
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/wasm",
   );
   detector = await FaceDetector.createFromOptions(fileset, {
     baseOptions: {
