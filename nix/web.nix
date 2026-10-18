@@ -1,5 +1,11 @@
 { stdenv, lib, nodejs_22, pnpm, pnpmConfigHook, fetchPnpmDeps }:
 
+let
+  # Run pnpm on the same Node as the build, instead of the Node 24 nixpkgs
+  # bundles with it — that one aborts on exit on macOS 27 (libuv kqueue
+  # assertion), which kills the deps fetch.
+  pnpm' = pnpm.override { nodejs = nodejs_22; };
+in
 stdenv.mkDerivation (finalAttrs: {
   pname = "magic-mirror-web";
   version = "0.1.0";
@@ -22,15 +28,18 @@ stdenv.mkDerivation (finalAttrs: {
 
   pnpmDeps = fetchPnpmDeps {
     inherit (finalAttrs) pname version src;
-    fetcherVersion = 3;
+    pnpm = pnpm';
+    # 4 = pnpm 11's SQLite store index is dumped as SQL, so the hash is
+    # reproducible across machines.
+    fetcherVersion = 4;
     # If you bump deps, set this to lib.fakeHash, run `nix-build`, and
     # replace it with the hash Nix prints in the error.
-    hash = "sha256-LluZ1jT/bSHF/jIXs30UIxfCJKOWcdghsXBKIcMXCss=";
+    hash = "sha256-3P2GRyrKoIyrkIw8LpEFK8IQGlwZXE4/1dcR0kb7m4Y=";
   };
 
   nativeBuildInputs = [
     nodejs_22
-    pnpm
+    pnpm'
     pnpmConfigHook
   ];
 
