@@ -7,6 +7,11 @@ This product includes software developed by the Matrix.org Foundation
   - matrix-js-sdk (Apache License 2.0)
     https://github.com/matrix-org/matrix-js-sdk
 
+This product includes MediaPipe by Google LLC (Apache License 2.0), including
+the BlazeFace short-range face detection model bundled at
+web/src/assets/blaze_face_short_range.tflite.
+    https://github.com/google-ai-edge/mediapipe
+
 This project is inspired by Element Call (https://github.com/element-hq/element-call),
 which is licensed under the GNU Affero General Public License v3.0. No code
 from Element Call is included in this project; only public Matrix specifications

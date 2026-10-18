@@ -65,8 +65,7 @@ in
       default = lib.concatStringsSep "; " [
         "default-src 'self'"
         # wasm-unsafe-eval: matrix-sdk-crypto and MediaPipe compile WebAssembly.
-        # jsdelivr serves MediaPipe's wasm loader script.
-        "script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net"
+        "script-src 'self' 'wasm-unsafe-eval'"
         "style-src 'self'"
         # Avatars are fetched with auth and shown as blob: URLs.
         "img-src 'self' blob: data:"

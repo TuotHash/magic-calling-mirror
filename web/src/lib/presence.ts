@@ -1,4 +1,10 @@
-import { FaceDetector, FilesetResolver } from "@mediapipe/tasks-vision";
+import { FaceDetector } from "@mediapipe/tasks-vision";
+// Served from our own origin rather than a CDN, so presence detection has no
+// third-party runtime dependency and the CSP can stay 'self'-only. The SIMD
+// build only — every current browser, including the Pi's Chromium, has it.
+import wasmLoaderPath from "@mediapipe/tasks-vision/vision_wasm_internal.js?url";
+import wasmBinaryPath from "@mediapipe/tasks-vision/vision_wasm_internal.wasm?url";
+import faceModelPath from "../assets/blaze_face_short_range.tflite?url";
 import { app } from "./store.svelte";
 import { startAgentPresence, stopAgentPresence } from "./agentPresence";
 
@@ -60,17 +66,8 @@ async function startCameraPresence(): Promise<void> {
   video.playsInline = true;
   await video.play();
 
-  // Pin the wasm to the exact version of the JS bundle — an unversioned URL
-  // floats to whatever is latest on the CDN, which can mismatch the glue code.
-  // Keep in sync with @mediapipe/tasks-vision in package.json.
-  const fileset = await FilesetResolver.forVisionTasks(
-    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/wasm",
-  );
-  detector = await FaceDetector.createFromOptions(fileset, {
-    baseOptions: {
-      modelAssetPath:
-        "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
-    },
+  detector = await FaceDetector.createFromOptions({ wasmLoaderPath, wasmBinaryPath }, {
+    baseOptions: { modelAssetPath: faceModelPath },
     runningMode: "VIDEO",
   });
 
