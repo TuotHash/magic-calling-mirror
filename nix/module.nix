@@ -2,6 +2,16 @@
 
 let
   cfg = config.services.magic-mirror;
+
+  # nginx drops server-level add_header directives in any location that has
+  # its own, so these are repeated in every location below. `always` keeps
+  # them on error responses too.
+  securityHeaders = ''
+    add_header Content-Security-Policy "${cfg.contentSecurityPolicy}" always;
+    add_header Permissions-Policy "camera=(self), microphone=(self), display-capture=(), geolocation=(), payment=(), usb=()" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Content-Type-Options "nosniff" always;
+  '';
 in
 {
   options.services.magic-mirror = {
@@ -49,6 +59,33 @@ in
         the static files live at `''${config.services.magic-mirror.package}`.
       '';
     };
+
+    contentSecurityPolicy = lib.mkOption {
+      type = lib.types.str;
+      default = lib.concatStringsSep "; " [
+        "default-src 'self'"
+        # wasm-unsafe-eval: matrix-sdk-crypto and MediaPipe compile WebAssembly.
+        # jsdelivr serves MediaPipe's wasm loader script.
+        "script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net"
+        "style-src 'self'"
+        # Avatars are fetched with auth and shown as blob: URLs.
+        "img-src 'self' blob: data:"
+        "media-src 'self' blob:"
+        # The homeserver is chosen at runtime, so any https/wss origin is
+        # allowed. ws://127.0.0.1 is the optional Pi Agent on the kiosk.
+        "connect-src 'self' https: wss: ws://127.0.0.1:* ws://localhost:*"
+        "worker-src 'self' blob:"
+        "object-src 'none'"
+        "base-uri 'none'"
+        "form-action 'none'"
+        "frame-ancestors 'none'"
+      ];
+      description = ''
+        Content-Security-Policy header sent with every response. The default
+        allows any HTTPS homeserver; replace `https: wss:` in `connect-src`
+        with your homeserver's origin to tighten it further.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
@@ -70,12 +107,12 @@ in
             tryFiles = "$uri $uri/ /index.html";
             extraConfig = ''
               add_header Cache-Control "no-cache, must-revalidate";
-            '';
+            '' + securityHeaders;
           };
           locations."/assets/" = {
             extraConfig = ''
               add_header Cache-Control "public, max-age=31536000, immutable";
-            '';
+            '' + securityHeaders;
           };
         };
       };
