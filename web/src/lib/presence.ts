@@ -1,4 +1,4 @@
-import { FaceDetector } from "@mediapipe/tasks-vision";
+import type { FaceDetector } from "@mediapipe/tasks-vision";
 // Served from our own origin rather than a CDN, so presence detection has no
 // third-party runtime dependency and the CSP can stay 'self'-only. The SIMD
 // build only — every current browser, including the Pi's Chromium, has it.
@@ -66,7 +66,10 @@ async function startCameraPresence(): Promise<void> {
   video.playsInline = true;
   await video.play();
 
-  detector = await FaceDetector.createFromOptions({ wasmLoaderPath, wasmBinaryPath }, {
+  // Loaded on demand: MediaPipe is a large chunk, and kiosks using the Pi
+  // Agent for presence never need it.
+  const vision = await import("@mediapipe/tasks-vision");
+  detector = await vision.FaceDetector.createFromOptions({ wasmLoaderPath, wasmBinaryPath }, {
     baseOptions: { modelAssetPath: faceModelPath },
     runningMode: "VIDEO",
   });
