@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Turns a fresh Raspberry Pi OS Lite (64-bit, Bookworm) install into a
-# magic mirror appliance: Chromium kiosk on tty1, optional PIR-based
-# presence agent. Idempotent — re-run to change settings.
+# magic mirror appliance: Chromium kiosk on tty1, optional Pi agent
+# (screen off, HDMI-CEC, PIR sensor). Idempotent — re-run to change settings.
 #
 # Usage:  sudo ./install.sh
 #
@@ -57,6 +57,7 @@ prompt_bool() {
 EXIST_URL=""
 EXIST_ROTATE="0"
 EXIST_AGENT="false"
+EXIST_PIR="false"
 EXIST_PIN="17"
 EXIST_PORT="8765"
 EXIST_CEC="false"
@@ -69,6 +70,8 @@ if [ -r "$CONFIG_FILE" ]; then
     EXIST_URL="${MIRROR_URL:-}"
     EXIST_ROTATE="${DISPLAY_ROTATE:-0}"
     EXIST_AGENT="${AGENT_ENABLED:-false}"
+    # Configs from before PIR was optional: the agent implied a sensor.
+    EXIST_PIR="${PIR_ENABLED:-$EXIST_AGENT}"
     EXIST_PIN="${AGENT_GPIO_PIN:-17}"
     EXIST_PORT="${AGENT_WS_PORT:-8765}"
     EXIST_CEC="${CEC_ENABLED:-false}"
@@ -86,12 +89,16 @@ while :; do
 done
 echo "    Capture cards: $(arecord -l 2>/dev/null | sed -n 's/^card [0-9]*: \([^ ]*\) .*/\1/p' | tr '\n' ' ')"
 prompt MIC_CARD "Microphone ALSA card (blank = leave audio config alone)" "$EXIST_MIC_CARD"
-prompt_bool AGENT_ENABLED "Enable PIR motion-sensor presence agent?" "$EXIST_AGENT"
+prompt_bool AGENT_ENABLED "Enable Pi agent (screen off after inactivity, TV control)?" "$EXIST_AGENT"
+PIR_ENABLED="false"
 AGENT_GPIO_PIN="$EXIST_PIN"
 AGENT_WS_PORT="$EXIST_PORT"
 if [ "$AGENT_ENABLED" = "true" ]; then
-    prompt AGENT_GPIO_PIN "PIR sensor BCM GPIO pin"      "$EXIST_PIN"
-    prompt AGENT_WS_PORT  "WebSocket port (loopback only)" "$EXIST_PORT"
+    prompt AGENT_WS_PORT "WebSocket port (loopback only)" "$EXIST_PORT"
+    prompt_bool PIR_ENABLED "PIR motion sensor connected?" "$EXIST_PIR"
+    if [ "$PIR_ENABLED" = "true" ]; then
+        prompt AGENT_GPIO_PIN "PIR sensor BCM GPIO pin" "$EXIST_PIN"
+    fi
 fi
 # CEC TV wake piggybacks on the agent's WebSocket — only offer it when the
 # agent is enabled, otherwise there's nothing listening for wake commands.
@@ -120,11 +127,15 @@ apt-get install -y --no-install-recommends chromium \
 
 if [ "$AGENT_ENABLED" = "true" ]; then
     echo "==> Installing agent packages"
+    apt-get install -y --no-install-recommends python3-websockets
+fi
+
+if [ "$PIR_ENABLED" = "true" ]; then
+    echo "==> Installing PIR sensor packages"
     # python3-rpi.gpio is the gpiozero default backend on Pi 4 / Bookworm.
     # Pi 5 users will want python3-lgpio instead — install separately.
     apt-get install -y --no-install-recommends \
         python3-gpiozero \
-        python3-websockets \
         python3-rpi.gpio
 fi
 
@@ -160,6 +171,7 @@ cat > "$CONFIG_FILE" <<EOF
 MIRROR_URL="$MIRROR_URL"
 DISPLAY_ROTATE=$DISPLAY_ROTATE
 AGENT_ENABLED=$AGENT_ENABLED
+PIR_ENABLED=$PIR_ENABLED
 AGENT_GPIO_PIN=$AGENT_GPIO_PIN
 AGENT_WS_PORT=$AGENT_WS_PORT
 CEC_ENABLED=$CEC_ENABLED
@@ -250,7 +262,7 @@ else
 fi
 
 if [ "$AGENT_ENABLED" = "true" ]; then
-    echo "==> Installing PIR agent"
+    echo "==> Installing Pi agent"
     if ! id -u magic-mirror-agent >/dev/null 2>&1; then
         useradd --system --no-create-home --shell /usr/sbin/nologin \
             --groups gpio,video magic-mirror-agent
@@ -269,7 +281,7 @@ else
     if systemctl list-unit-files magic-mirror-agent.service >/dev/null 2>&1; then
         if systemctl is-enabled --quiet magic-mirror-agent.service 2>/dev/null \
            || systemctl is-active --quiet magic-mirror-agent.service 2>/dev/null; then
-            echo "==> Disabling previously-installed PIR agent"
+            echo "==> Disabling previously-installed Pi agent"
             systemctl disable --now magic-mirror-agent.service || true
         fi
     fi

@@ -10,6 +10,7 @@ import * as Crypto from "matrix-js-sdk/lib/crypto-api";
 import { app } from "./store.svelte";
 import type { Contact } from "./config";
 import { sendAgentCommand } from "./agentPresence";
+import { noteActivity } from "./screenOff";
 import { inQuietHours } from "./quietHours";
 
 // matrix-js-sdk doesn't re-export CallEventHandlerEvent, but the underlying
@@ -248,8 +249,10 @@ function handleIncomingCall(call: MatrixCall) {
 
   attachCallLifecycle(call);
   app.activeCall = call;
-  // Best-effort TV wake via the Pi Agent — no-op if the agent isn't
-  // running or CEC isn't enabled. Fire and forget.
+  noteActivity();
+  // Best-effort wake via the Pi Agent: restores the HDMI signal and, with
+  // CEC enabled, turns the TV on and switches it to our input. No-op if
+  // the agent isn't running. Fire and forget.
   sendAgentCommand("wake");
   // Show the ringing splash; the Ringing view itself will call answerActiveCall
   // after the configured delay.
@@ -360,6 +363,8 @@ function clearOutgoingTimeout() {
 
 export function endCall() {
   clearOutgoingTimeout();
+  // Restart the screen-off countdown from the end of the call.
+  noteActivity();
   const call = app.activeCall;
   if (call) {
     try {

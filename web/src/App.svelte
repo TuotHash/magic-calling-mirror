@@ -4,6 +4,7 @@
   import { startClient } from "./lib/matrix";
   import { installInputHandlers } from "./lib/input";
   import { startPresence } from "./lib/presence";
+  import { installScreenOff } from "./lib/screenOff";
 
   import Setup from "./routes/Setup.svelte";
   import Login from "./routes/Login.svelte";
@@ -18,6 +19,7 @@
 
   onMount(async () => {
     installInputHandlers();
+    installScreenOff();
 
     // Press C to hide the cursor (for kiosk use). Cursor is visible by default.
     if (localStorage.getItem("magic-mirror.hide-cursor") === "1") {

@@ -24,6 +24,12 @@ xset s off
 xset s noblank
 xset -dpms
 
+# The Pi agent runs as its own system user and cuts/restores the HDMI
+# signal with xset, so let it talk to this X server.
+if [ "${AGENT_ENABLED:-false}" = "true" ]; then
+    xhost +SI:localuser:magic-mirror-agent >/dev/null || true
+fi
+
 unclutter -idle 0 -root >/dev/null 2>&1 &
 
 # Pi OS / Debian renamed the binary from `chromium-browser` to `chromium`

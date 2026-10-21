@@ -1,9 +1,10 @@
-# Pi setup — kiosk + optional PIR agent
+# Pi setup — kiosk + optional Pi agent
 
 Turns a fresh Raspberry Pi OS Lite (64-bit, Bookworm) install into a
 single-purpose mirror that boots straight into the web app, with an
-optional PIR motion-sensor presence agent that replaces the in-browser
-face detector.
+optional Pi agent that does what the browser can't: turn the screen off
+after inactivity, wake the TV via HDMI-CEC, and (with a PIR motion
+sensor) replace the in-browser face detector.
 
 The kiosk is mandatory; the agent is opt-in. One `install.sh`, one
 `/etc/magic-mirror/config`, one `uninstall.sh`.
@@ -20,8 +21,8 @@ The kiosk is mandatory; the agent is opt-in. One `install.sh`, one
 2. Boot the Pi, SSH in, and `sudo apt update && sudo apt full-upgrade -y`
    followed by a reboot.
 3. Plug in the USB webcam and any input device (rotary encoder /
-   keyboard) you intend to use. If you're enabling the PIR agent, wire
-   the sensor too — see [Hardware](#hardware) below.
+   keyboard) you intend to use. If you're using a PIR sensor, wire
+   it too — see [Hardware](#hardware) below.
 4. Host the web app somewhere reachable from the Pi (HTTPS strongly
    recommended — Chromium will refuse `getUserMedia` on plain HTTP
    origins other than `localhost`).
@@ -48,16 +49,19 @@ You'll be asked for:
   is written to `/etc/asound.conf`; without it Chromium tries to record
   from the headphone jack and calls fail with "Could not start audio
   source".
-- **Enable PIR agent?** — `y` to wire up the motion sensor; `n` (default)
-  to keep using the in-browser MediaPipe face detector.
-  - If yes: **GPIO pin** (BCM, default 17) and **WebSocket port**
-    (default 8765, loopback-only).
+- **Enable Pi agent?** — needed for "Screen off after" (web app
+  settings) and HDMI-CEC. Asks for the **WebSocket port** (default 8765,
+  loopback-only), then:
+  - **PIR motion sensor connected?** — if yes, the sensor drives screen
+    dimming instead of the in-browser face detector; asks for the
+    **GPIO pin** (BCM, default 17). Without a sensor the agent never
+    dims, and the face detector is off too.
 - **Wake TV via HDMI-CEC on incoming call?** — only offered if the agent
   is enabled (it's the agent that runs `cec-client`). Installs
   `cec-utils` and grants the agent's user the `video` group so it can
-  open `/dev/cec0`. The web client sends `{"command":"wake"}` over the
-  same WebSocket on each incoming call; grandpa turns the TV off
-  himself with the remote when the call ends.
+  open `/dev/cec0`. On each incoming call the TV is turned on and
+  switched to the Pi's input; grandpa turns the TV off himself with the
+  remote when the call ends.
 
 Re-running `install.sh` is safe and idempotent — it pulls existing values
 from `/etc/magic-mirror/config` as defaults, so you can flip the agent
@@ -73,7 +77,7 @@ The Pi comes back up logged in as `mirror` on tty1, runs
 `startx -- -nocursor`, and Chromium opens the web app in kiosk mode with
 camera/mic auto-granted. If the agent is enabled, `start-mirror.sh`
 automatically appends `?presenceAgentUrl=ws://127.0.0.1:<port>` so the
-web client picks up PIR presence on first load — no manual URL fiddling.
+web client finds the agent on first load — no manual URL fiddling.
 
 ## Day-2 stuff
 
@@ -135,8 +139,12 @@ A few non-obvious choices, in case you go rummaging:
 - **`unclutter -idle 0`** hides the cursor immediately. There's also a
   `C` keybind in the web app that toggles cursor visibility (per
   browser, persisted in `localStorage`) for live debugging.
-- **No screen blanking** (`xset s off; xset -dpms`). Presence-based
-  dimming happens inside the web app itself.
+- **No automatic screen blanking** (`xset s off; xset -dpms`). The web
+  app decides: presence-based dimming happens inside the page, and
+  "Screen off after" asks the agent to cut the HDMI signal
+  (`xset dpms force off`). Any key press wakes it again. The agent runs
+  as its own user, so `start-mirror.sh` grants it X access with
+  `xhost +SI:localuser:magic-mirror-agent`.
 - **PIR over WebSocket, not GPIO straight into the browser.** The web
   client runs in a sandboxed Chromium and can't read `/dev/gpiomem`.
   A small WS server is the simplest bridge.

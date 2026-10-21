@@ -49,6 +49,11 @@ export interface AppConfig {
   presenceEnabled: boolean;
   /** Seconds without a detected face before dimming the screen. */
   dimAfterSeconds: number;
+  /**
+   * Minutes without a button press or call before the Pi agent cuts the
+   * HDMI signal. 0 = never. Needs the Pi agent (`presenceAgentUrl`).
+   */
+  screenOffMinutes: number;
   /** Seconds the "ringing" splash is shown before auto-answering. */
   ringSeconds: number;
   /** Show the idle clock in 24h format. False = 12h with AM/PM. */
@@ -86,6 +91,7 @@ const DEFAULT_CONFIG: AppConfig = {
   autoAnswer: true,
   presenceEnabled: true,
   dimAfterSeconds: 60,
+  screenOffMinutes: 0,
   ringSeconds: 3,
   clock24h: true,
   quietHoursEnabled: false,

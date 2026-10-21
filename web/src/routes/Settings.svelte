@@ -11,6 +11,7 @@
     type CandidateRoom,
   } from "../lib/matrix";
   import { onInput } from "../lib/input";
+  import { noteActivity } from "../lib/screenOff";
 
   let rooms = $state<CandidateRoom[]>([]);
   let candidates = $state<CandidateContact[]>([]);
@@ -46,6 +47,17 @@
     // change is visible without waiting for a reload.
     if (!app.config.presenceEnabled) app.presenceActive = true;
     app.persist();
+  }
+
+  const SCREEN_OFF_STEPS = [0, 5, 10, 15, 30, 60];
+
+  function cycleScreenOff() {
+    const i = SCREEN_OFF_STEPS.indexOf(app.config.screenOffMinutes);
+    app.config.screenOffMinutes =
+      SCREEN_OFF_STEPS[(i + 1) % SCREEN_OFF_STEPS.length];
+    app.persist();
+    // Restart the countdown with the new value.
+    noteActivity();
   }
 
   function toggleQuiet() {
@@ -181,9 +193,10 @@
   const UNTIL_POS = $derived(
     app.config.quietHoursEnabled ? QUIET_POS + 2 : -1,
   );
-  const CLOCK_POS = $derived(
+  const SCREEN_OFF_POS = $derived(
     QUIET_POS + (app.config.quietHoursEnabled ? 3 : 1),
   );
+  const CLOCK_POS = $derived(SCREEN_OFF_POS + 1);
   const LOGOUT_POS = $derived(CLOCK_POS + 1);
 
   const off = onInput((evt) => {
@@ -234,6 +247,7 @@
           editingTime = { field: "from", segment: "h" };
         else if (cursor === UNTIL_POS)
           editingTime = { field: "until", segment: "h" };
+        else if (cursor === SCREEN_OFF_POS) cycleScreenOff();
         else if (cursor === CLOCK_POS) toggleClock();
         else if (cursor === LOGOUT_POS) doLogout();
         else if (cursor < rooms.length) toggleRoomAt(cursor);
@@ -421,6 +435,19 @@
         </p>
       {/if}
     {/if}
+
+    <button
+      class="toggle"
+      class:active={cursor === SCREEN_OFF_POS}
+      onclick={cycleScreenOff}
+    >
+      Screen off after · <strong
+        >{app.config.screenOffMinutes > 0
+          ? `${app.config.screenOffMinutes} min`
+          : "never"}</strong
+      >
+      {#if !app.config.presenceAgentUrl}(needs Pi agent){/if}
+    </button>
 
     <button
       class="toggle"

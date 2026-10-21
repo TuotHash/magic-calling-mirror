@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
-"""Magic Mirror PIR-presence agent.
+"""Magic Mirror Pi agent.
 
-Reads a PIR motion sensor on a GPIO pin and broadcasts presence-state
-changes to all connected WebSocket clients on 127.0.0.1. The web
-client opens this socket and uses the events to drive its dim/wake
-behaviour, in place of the in-browser MediaPipe face detector.
+Gives the web client control over things a browser can't touch, over a
+WebSocket on 127.0.0.1. Inbound commands:
 
-Wire your PIR module's OUT pin to GPIO17 (BCM) by default, VCC to 5V,
-GND to GND. Override via env vars (AGENT_GPIO_PIN, AGENT_WS_PORT) or
-CLI flags.
+  {"command":"display_off"}  cut the HDMI signal (X DPMS off)
+  {"command":"display_on"}   restore it
+  {"command":"wake"}         restore it and, when CEC_ENABLED=true, turn
+                             the TV on and switch it to our input
 
-Also accepts inbound `{"command":"wake"}` messages and, when
-CEC_ENABLED=true, sends an HDMI-CEC power-on to the TV via cec-client.
-This lets the web client wake grandpa's TV when a call comes in.
+Optionally (PIR_ENABLED=true) reads a PIR motion sensor on a GPIO pin
+and broadcasts presence changes, which drive the web client's dimming
+in place of the in-browser MediaPipe face detector. Wire the PIR's OUT
+pin to GPIO17 (BCM) by default, VCC to 5V, GND to GND. Without a sensor
+presence is always reported as active.
+
+Override via env vars (PIR_ENABLED, AGENT_GPIO_PIN, AGENT_WS_PORT,
+CEC_ENABLED) or CLI flags.
 """
 
 from __future__ import annotations
@@ -27,7 +31,6 @@ import subprocess
 import sys
 from typing import Set
 
-from gpiozero import MotionSensor
 import websockets
 
 LOG = logging.getLogger("magic-mirror-agent")
@@ -51,27 +54,68 @@ class AgentState:
 
 
 async def cec_wake() -> None:
-    """Power on the TV connected via HDMI by piping `on 0` to cec-client.
+    """Power on the TV (`on 0`), then announce ourselves as the active
+    source (`as`) so the TV switches to our HDMI input even if someone
+    left it on another one.
 
     `-s` runs a single command then exits, `-d 1` quietens the log output.
     Runs in a thread so a slow CEC bus doesn't stall the event loop.
     """
     def run() -> None:
-        try:
-            subprocess.run(
-                ["cec-client", "-s", "-d", "1"],
-                input=b"on 0",
-                timeout=10,
-                check=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except FileNotFoundError:
-            LOG.warning("cec-client not installed — re-run install.sh with CEC enabled")
-        except subprocess.TimeoutExpired:
-            LOG.warning("cec-client timed out")
-        except Exception as e:
-            LOG.warning("cec-client failed: %s", e)
+        for command in (b"on 0", b"as"):
+            try:
+                subprocess.run(
+                    ["cec-client", "-s", "-d", "1"],
+                    input=command,
+                    timeout=10,
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except FileNotFoundError:
+                LOG.warning("cec-client not installed — re-run install.sh with CEC enabled")
+                return
+            except subprocess.TimeoutExpired:
+                LOG.warning("cec-client timed out")
+            except Exception as e:
+                LOG.warning("cec-client failed: %s", e)
+
+    await asyncio.to_thread(run)
+
+
+async def display_power(on: bool) -> None:
+    """Cut or restore the HDMI signal via X DPMS.
+
+    Needs DISPLAY (set in the service unit) and X access, which
+    start-mirror.sh grants this user with xhost. start-mirror.sh also runs
+    `xset -dpms`, so DPMS is enabled here first — with zero timeouts, so
+    X never blanks on its own. Any key press wakes the display in X too.
+    """
+    if on:
+        steps = [["dpms", "force", "on"]]
+    else:
+        steps = [["+dpms"], ["dpms", "0", "0", "0"], ["dpms", "force", "off"]]
+
+    def run() -> None:
+        for args in steps:
+            try:
+                r = subprocess.run(
+                    ["xset", *args],
+                    timeout=5,
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                )
+            except Exception as e:
+                LOG.warning("xset %s failed: %s", " ".join(args), e)
+                return
+            if r.returncode != 0:
+                LOG.warning(
+                    "xset %s failed: %s",
+                    " ".join(args),
+                    r.stderr.decode(errors="replace").strip(),
+                )
+                return
 
     await asyncio.to_thread(run)
 
@@ -79,11 +123,16 @@ async def cec_wake() -> None:
 async def handle_command(msg: dict, cec_enabled: bool) -> None:
     cmd = msg.get("command")
     if cmd == "wake":
-        if not cec_enabled:
-            LOG.debug("ignoring wake — CEC_ENABLED=false")
-            return
-        LOG.info("waking TV via HDMI-CEC")
-        await cec_wake()
+        LOG.info("wake: display on%s", " + HDMI-CEC" if cec_enabled else "")
+        await display_power(True)
+        if cec_enabled:
+            await cec_wake()
+    elif cmd == "display_on":
+        LOG.info("display on")
+        await display_power(True)
+    elif cmd == "display_off":
+        LOG.info("display off")
+        await display_power(False)
     else:
         LOG.debug("unknown command: %r", cmd)
 
@@ -108,37 +157,47 @@ async def serve_client(ws, state: AgentState, cec_enabled: bool) -> None:
         LOG.info("client disconnected (%d remaining)", len(state.clients))
 
 
-async def main(pin: int, port: int, cec_enabled: bool) -> None:
+async def main(pir: bool, pin: int, port: int, cec_enabled: bool) -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
 
     state = AgentState()
-    sensor = MotionSensor(pin)
     loop = asyncio.get_running_loop()
+    sensor = None
 
-    # gpiozero callbacks fire on a background thread; hop back to the
-    # event loop before touching the connection set.
-    def schedule_broadcast() -> None:
-        loop.call_soon_threadsafe(asyncio.create_task, state.broadcast())
+    if pir:
+        # Imported here so the agent runs without gpiozero when there's
+        # no sensor.
+        from gpiozero import MotionSensor
 
-    def on_motion() -> None:
+        sensor = MotionSensor(pin)
+
+        # gpiozero callbacks fire on a background thread; hop back to the
+        # event loop before touching the connection set.
+        def schedule_broadcast() -> None:
+            loop.call_soon_threadsafe(asyncio.create_task, state.broadcast())
+
+        def on_motion() -> None:
+            state.active = True
+            schedule_broadcast()
+
+        def on_no_motion() -> None:
+            state.active = False
+            schedule_broadcast()
+
+        sensor.when_motion = on_motion
+        sensor.when_no_motion = on_no_motion
+        state.active = sensor.motion_detected
+    else:
+        # No sensor: report "active" so the web client never dims.
         state.active = True
-        schedule_broadcast()
-
-    def on_no_motion() -> None:
-        state.active = False
-        schedule_broadcast()
-
-    sensor.when_motion = on_motion
-    sensor.when_no_motion = on_no_motion
-    state.active = sensor.motion_detected
 
     LOG.info(
-        "listening on 127.0.0.1:%d (PIR pin BCM%d, CEC %s)",
+        "listening on 127.0.0.1:%d (%s, CEC %s)",
         port,
-        pin,
+        f"PIR pin BCM{pin}" if pir else "no PIR",
         "enabled" if cec_enabled else "disabled",
     )
 
@@ -154,7 +213,8 @@ async def main(pin: int, port: int, cec_enabled: bool) -> None:
     async with websockets.serve(handler, "127.0.0.1", port):
         await stop.wait()
 
-    sensor.close()
+    if sensor is not None:
+        sensor.close()
     LOG.info("shutting down")
 
 
@@ -167,6 +227,12 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--pir",
+        action=argparse.BooleanOptionalAction,
+        default=_env_bool("PIR_ENABLED", True),
+        help="Read a PIR motion sensor (default: on)",
+    )
     parser.add_argument(
         "--pin",
         type=int,
@@ -183,10 +249,10 @@ if __name__ == "__main__":
         "--cec",
         action="store_true",
         default=_env_bool("CEC_ENABLED"),
-        help="Enable HDMI-CEC TV wake on `{\"command\":\"wake\"}` messages",
+        help="Also turn the TV on via HDMI-CEC on `{\"command\":\"wake\"}` messages",
     )
     args = parser.parse_args()
     try:
-        asyncio.run(main(args.pin, args.port, args.cec))
+        asyncio.run(main(args.pir, args.pin, args.port, args.cec))
     except KeyboardInterrupt:
         sys.exit(0)

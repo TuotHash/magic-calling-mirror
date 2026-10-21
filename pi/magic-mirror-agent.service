@@ -1,11 +1,13 @@
 [Unit]
-Description=Magic Mirror PIR presence agent
+Description=Magic Mirror Pi agent (display control, CEC, optional PIR)
 After=network.target
 
 [Service]
 Type=simple
 EnvironmentFile=-/etc/magic-mirror/config
 ExecStart=/usr/local/bin/magic_mirror_agent.py
+# xset talks to the kiosk's X server; start-mirror.sh grants us access.
+Environment=DISPLAY=:0
 Restart=on-failure
 RestartSec=3
 
@@ -17,6 +19,8 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+# ...but keep the X socket directory visible for xset.
+BindPaths=-/tmp/.X11-unix
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
