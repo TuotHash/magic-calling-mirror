@@ -60,6 +60,9 @@ EXIST_AGENT="false"
 EXIST_PIN="17"
 EXIST_PORT="8765"
 EXIST_CEC="false"
+EXIST_AUDIO_OUT="hdmi0"
+# First ALSA card that can capture — on a mirror that's the webcam's mic.
+EXIST_MIC_CARD="$(arecord -l 2>/dev/null | sed -n 's/^card [0-9]*: \([^ ]*\) .*/\1/p' | head -1)"
 if [ -r "$CONFIG_FILE" ]; then
     # shellcheck disable=SC1090
     . "$CONFIG_FILE" || true
@@ -69,11 +72,20 @@ if [ -r "$CONFIG_FILE" ]; then
     EXIST_PIN="${AGENT_GPIO_PIN:-17}"
     EXIST_PORT="${AGENT_WS_PORT:-8765}"
     EXIST_CEC="${CEC_ENABLED:-false}"
+    EXIST_AUDIO_OUT="${AUDIO_OUT:-$EXIST_AUDIO_OUT}"
+    EXIST_MIC_CARD="${MIC_CARD:-$EXIST_MIC_CARD}"
 fi
 
 prompt MIRROR_URL "Mirror web app URL" "${EXIST_URL:-https://example.com/mirror/}"
 echo "    0=normal  1=90°cw  2=180°  3=90°ccw"
 prompt DISPLAY_ROTATE "Rotate display? (0/1/2/3)" "$EXIST_ROTATE"
+while :; do
+    prompt AUDIO_OUT "Sound output (hdmi0/hdmi1/headphones)" "$EXIST_AUDIO_OUT"
+    case "$AUDIO_OUT" in hdmi0|hdmi1|headphones) break ;; esac
+    echo "    Please answer hdmi0, hdmi1 or headphones."
+done
+echo "    Capture cards: $(arecord -l 2>/dev/null | sed -n 's/^card [0-9]*: \([^ ]*\) .*/\1/p' | tr '\n' ' ')"
+prompt MIC_CARD "Microphone ALSA card (blank = leave audio config alone)" "$EXIST_MIC_CARD"
 prompt_bool AGENT_ENABLED "Enable PIR motion-sensor presence agent?" "$EXIST_AGENT"
 AGENT_GPIO_PIN="$EXIST_PIN"
 AGENT_WS_PORT="$EXIST_PORT"
@@ -151,8 +163,40 @@ AGENT_ENABLED=$AGENT_ENABLED
 AGENT_GPIO_PIN=$AGENT_GPIO_PIN
 AGENT_WS_PORT=$AGENT_WS_PORT
 CEC_ENABLED=$CEC_ENABLED
+AUDIO_OUT=$AUDIO_OUT
+MIC_CARD=$MIC_CARD
 EOF
 chmod 0644 "$CONFIG_FILE"
+
+echo "==> Writing /etc/asound.conf"
+# Pi OS Lite has no sound server, so Chromium talks to ALSA's default
+# device directly. Out of the box that's card 0 (the headphone jack), which
+# has no microphone — getUserMedia then fails with "Could not start audio
+# source". Point capture at the webcam and playback at the chosen output.
+# vc4 HDMI only accepts IEC958 frames; sysdefault wraps it in the right
+# plugins, plughw would not.
+case "$AUDIO_OUT" in
+    hdmi0)      OUT_CARD="vc4hdmi0" ;;
+    hdmi1)      OUT_CARD="vc4hdmi1" ;;
+    headphones) OUT_CARD="Headphones" ;;
+esac
+if [ -n "$MIC_CARD" ]; then
+    cat > /etc/asound.conf <<EOF
+# Written by magic-mirror install.sh — re-run it to change.
+pcm.!default {
+    type asym
+    capture.pcm "plughw:CARD=$MIC_CARD"
+    playback.pcm "sysdefault:CARD=$OUT_CARD"
+}
+ctl.!default {
+    type hw
+    card $OUT_CARD
+}
+EOF
+    chmod 0644 /etc/asound.conf
+else
+    echo "    No microphone card given — leaving /etc/asound.conf untouched."
+fi
 
 echo "==> Installing kiosk launcher"
 install -m 0755 "$SCRIPT_DIR/start-mirror.sh" /usr/local/bin/start-mirror.sh

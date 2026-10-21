@@ -41,6 +41,13 @@ You'll be asked for:
   (typical for a portrait mirror), `2` for upside-down, `3` for 90°
   counter-clockwise. Applied via `display_rotate=` in
   `/boot/firmware/config.txt`.
+- **Sound output** — `hdmi0` (the port next to USB-C power), `hdmi1` or
+  `headphones`.
+- **Microphone ALSA card** — defaults to the first capture device found
+  (normally the webcam, e.g. `S6`). Together with the sound output this
+  is written to `/etc/asound.conf`; without it Chromium tries to record
+  from the headphone jack and calls fail with "Could not start audio
+  source".
 - **Enable PIR agent?** — `y` to wire up the motion sensor; `n` (default)
   to keep using the in-browser MediaPipe face detector.
   - If yes: **GPIO pin** (BCM, default 17) and **WebSocket port**

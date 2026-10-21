@@ -35,6 +35,11 @@ echo "==> Removing kiosk launcher and config"
 rm -f /usr/local/bin/start-mirror.sh
 rm -rf /etc/magic-mirror
 
+if grep -q '^# Written by magic-mirror install.sh' /etc/asound.conf 2>/dev/null; then
+    echo "==> Removing /etc/asound.conf"
+    rm -f /etc/asound.conf
+fi
+
 echo "==> Removing rotation block from config.txt"
 for f in /boot/firmware/config.txt /boot/config.txt; do
     [ -f "$f" ] && sed -i '/^# >>> magic-mirror >>>/,/^# <<< magic-mirror <<</d' "$f"

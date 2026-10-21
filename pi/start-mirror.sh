@@ -36,13 +36,17 @@ fi
 
 # --use-fake-ui-for-media-stream auto-grants camera + mic without a prompt.
 # This is safe here because the kiosk only ever loads the configured URL.
+# WebRtcPipeWireCamera is disabled because newer Chromium tries the
+# xdg-desktop-portal camera path, which doesn't exist on Pi OS Lite, and
+# getUserMedia then hangs forever instead of falling back to V4L2.
+# Chromium honours only the last --disable-features, so keep them in one flag.
 exec "$CHROMIUM" \
     --kiosk \
     --noerrdialogs \
     --disable-infobars \
     --no-first-run \
     --disable-translate \
-    --disable-features=TranslateUI \
+    --disable-features=TranslateUI,WebRtcPipeWireCamera \
     --use-fake-ui-for-media-stream \
     --autoplay-policy=no-user-gesture-required \
     --user-data-dir=/home/mirror/.chromium-mirror \
