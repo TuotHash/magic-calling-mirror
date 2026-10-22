@@ -45,6 +45,9 @@ fi
 # WebRtcPipeWireCamera is disabled because newer Chromium tries the
 # xdg-desktop-portal camera path, which doesn't exist on Pi OS Lite, and
 # getUserMedia then hangs forever instead of falling back to V4L2.
+# LocalNetworkAccessChecks* are disabled because Chromium otherwise asks
+# before the (public) mirror site may open the agent's WebSocket on
+# 127.0.0.1, and nobody can answer that prompt in kiosk mode.
 # Chromium honours only the last --disable-features, so keep them in one flag.
 exec "$CHROMIUM" \
     --kiosk \
@@ -52,7 +55,7 @@ exec "$CHROMIUM" \
     --disable-infobars \
     --no-first-run \
     --disable-translate \
-    --disable-features=TranslateUI,WebRtcPipeWireCamera \
+    --disable-features=TranslateUI,WebRtcPipeWireCamera,LocalNetworkAccessChecks,LocalNetworkAccessChecksWebSockets \
     --use-fake-ui-for-media-stream \
     --autoplay-policy=no-user-gesture-required \
     --user-data-dir=/home/mirror/.chromium-mirror \
