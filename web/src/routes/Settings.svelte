@@ -21,6 +21,19 @@
     new Set(app.config.manualContacts.map((c) => c.userId)),
   );
   let cursor = $state(0);
+  let wrapEl = $state<HTMLDivElement | null>(null);
+
+  // Keep the dial/keyboard cursor on screen. Runs after the DOM update, so
+  // the `.active` class has already moved. Back at the top, show the
+  // heading too instead of stopping at the first row.
+  $effect(() => {
+    if (!wrapEl) return;
+    if (cursor === 0) {
+      wrapEl.scrollTo({ top: 0 });
+      return;
+    }
+    wrapEl.querySelector(".active")?.scrollIntoView({ block: "nearest" });
+  });
   let confirmLogout = $state(false);
   // While non-null, prev/next adjusts the focused segment instead of moving
   // the cursor — lets keyboard-only users edit quiet-hour times. Native
@@ -261,7 +274,7 @@
   onDestroy(off);
 </script>
 
-<div class="wrap">
+<div class="wrap" bind:this={wrapEl}>
   <h2>Trusted callers</h2>
   <p class="hint">
     Anyone in the contacts room <em>or</em> on the private list can ring through.
@@ -481,6 +494,11 @@
     padding: 3rem 2rem;
     gap: 1rem;
     overflow-y: auto;
+  }
+  /* Room around the cursor when it's scrolled into view, so the
+     neighbouring rows (or a section heading) stay visible too. */
+  .wrap :global(.active) {
+    scroll-margin-block: 5rem;
   }
   h2 { font-weight: 200; font-size: 2.25rem; }
   h3 {
