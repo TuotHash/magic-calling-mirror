@@ -8,6 +8,10 @@ WebSocket on 127.0.0.1. Inbound commands:
   {"command":"display_on"}   restore it
   {"command":"wake"}         restore it and, when CEC_ENABLED=true, turn
                              the TV on and switch it to our input
+  {"command":"call_ended"}   with CEC, put the TV back the way `wake`
+                             found it: standby if it was off, otherwise
+                             give up the input so it returns to its
+                             previous source
 
 Optionally (PIR_ENABLED=true) reads a PIR motion sensor on a GPIO pin
 and broadcasts presence changes, which drive the web client's dimming
@@ -29,7 +33,7 @@ import os
 import signal
 import subprocess
 import sys
-from typing import Set
+from typing import Optional, Set
 
 import websockets
 
@@ -40,6 +44,9 @@ class AgentState:
     def __init__(self) -> None:
         self.active: bool = False
         self.clients: Set = set()
+        # How to undo the last CEC wake once the call ends: "standby",
+        # "inactive", or None if there's nothing to undo.
+        self.tv_restore: Optional[str] = None
 
     def message(self) -> str:
         return json.dumps({"presence": "active" if self.active else "idle"})
@@ -53,34 +60,58 @@ class AgentState:
         )
 
 
-async def cec_wake() -> None:
-    """Power on the TV (`on 0`), then announce ourselves as the active
-    source (`as`) so the TV switches to our HDMI input even if someone
-    left it on another one.
+def _cec(command: str) -> Optional[str]:
+    """Run one cec-client command and return its output, or None on failure.
 
     `-s` runs a single command then exits, `-d 1` quietens the log output.
-    Runs in a thread so a slow CEC bus doesn't stall the event loop.
+    Blocking — call it from a thread so a slow CEC bus doesn't stall the
+    event loop.
     """
-    def run() -> None:
-        for command in (b"on 0", b"as"):
-            try:
-                subprocess.run(
-                    ["cec-client", "-s", "-d", "1"],
-                    input=command,
-                    timeout=10,
-                    check=False,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            except FileNotFoundError:
-                LOG.warning("cec-client not installed — re-run install.sh with CEC enabled")
-                return
-            except subprocess.TimeoutExpired:
-                LOG.warning("cec-client timed out")
-            except Exception as e:
-                LOG.warning("cec-client failed: %s", e)
+    try:
+        r = subprocess.run(
+            ["cec-client", "-s", "-d", "1"],
+            input=command.encode(),
+            timeout=10,
+            check=False,
+            capture_output=True,
+        )
+    except FileNotFoundError:
+        LOG.warning("cec-client not installed — re-run install.sh with CEC enabled")
+        return None
+    except subprocess.TimeoutExpired:
+        LOG.warning("cec-client %r timed out", command)
+        return None
+    except Exception as e:
+        LOG.warning("cec-client %r failed: %s", command, e)
+        return None
+    return r.stdout.decode(errors="replace")
 
-    await asyncio.to_thread(run)
+
+async def cec_wake() -> str:
+    """Power on the TV (`on 0`), then announce ourselves as the active
+    source (`as`) so the TV switches to our HDMI input even if it was on
+    another one.
+
+    Returns how to undo this afterwards: "standby" if the TV was off,
+    otherwise "inactive" (hand the input back).
+    """
+    def run() -> str:
+        status = (_cec("pow 0") or "").lower()
+        was_off = (
+            "power status: standby" in status
+            or "in transition from on to standby" in status
+        )
+        _cec("on 0")
+        _cec("as")
+        return "standby" if was_off else "inactive"
+
+    return await asyncio.to_thread(run)
+
+
+async def cec_restore(action: str) -> None:
+    """Undo a `cec_wake`: send the TV back to standby, or mark ourselves as
+    an inactive source (`is`) so the TV returns to its previous input."""
+    await asyncio.to_thread(_cec, "standby 0" if action == "standby" else "is")
 
 
 async def display_power(on: bool) -> None:
@@ -120,13 +151,22 @@ async def display_power(on: bool) -> None:
     await asyncio.to_thread(run)
 
 
-async def handle_command(msg: dict, cec_enabled: bool) -> None:
+async def handle_command(msg: dict, state: AgentState, cec_enabled: bool) -> None:
     cmd = msg.get("command")
     if cmd == "wake":
         LOG.info("wake: display on%s", " + HDMI-CEC" if cec_enabled else "")
         await display_power(True)
         if cec_enabled:
-            await cec_wake()
+            restore = await cec_wake()
+            # A second wake before the call ended would see the TV already
+            # on — keep the state from before the first one.
+            if state.tv_restore is None:
+                state.tv_restore = restore
+    elif cmd == "call_ended":
+        if cec_enabled and state.tv_restore is not None:
+            restore, state.tv_restore = state.tv_restore, None
+            LOG.info("call ended: TV %s", "to standby" if restore == "standby" else "back to previous input")
+            await cec_restore(restore)
     elif cmd == "display_on":
         LOG.info("display on")
         await display_power(True)
@@ -151,7 +191,7 @@ async def serve_client(ws, state: AgentState, cec_enabled: bool) -> None:
                 LOG.warning("non-JSON message ignored: %r", raw)
                 continue
             if isinstance(msg, dict):
-                await handle_command(msg, cec_enabled)
+                await handle_command(msg, state, cec_enabled)
     finally:
         state.clients.discard(ws)
         LOG.info("client disconnected (%d remaining)", len(state.clients))

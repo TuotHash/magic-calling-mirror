@@ -60,8 +60,8 @@ You'll be asked for:
   is enabled (it's the agent that runs `cec-client`). Installs
   `cec-utils` and grants the agent's user the `video` group so it can
   open `/dev/cec0`. On each incoming call the TV is turned on and
-  switched to the Pi's input; grandpa turns the TV off himself with the
-  remote when the call ends.
+  switched to the Pi's input. When the call ends it goes back to how it
+  was: standby if it was off, otherwise the input it was on before.
 
 Re-running `install.sh` is safe and idempotent — it pulls existing values
 from `/etc/magic-mirror/config` as defaults, so you can flip the agent

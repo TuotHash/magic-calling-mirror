@@ -372,6 +372,8 @@ export function endCall() {
     } catch {
       // ignore — call may already be terminated
     }
+    // Lets the Pi Agent put the TV back the way it was before "wake".
+    sendAgentCommand("call_ended");
   }
   app.activeCall = null;
   app.setView("idle");
